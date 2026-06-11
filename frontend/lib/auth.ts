@@ -1,12 +1,10 @@
 import { api, setAccessToken, clearAccessToken } from "./api";
 
-export interface User {
+export interface Developer {
   id: string;
   email: string;
   firstName: string | null;
   lastName: string | null;
-  username: string | null;
-  imageUrl: string | null;
   emailVerified: boolean;
 }
 
@@ -15,16 +13,16 @@ export async function register(data: {
   password: string;
   firstName?: string;
   lastName?: string;
-}) {
+}): Promise<Developer> {
   const res = await api.post("/api/auth/register", data);
   setAccessToken(res.data.accessToken);
-  return res.data.user as User;
+  return res.data.developer;
 }
 
-export async function login(email: string, password: string) {
+export async function login(email: string, password: string): Promise<Developer> {
   const res = await api.post("/api/auth/login", { email, password });
   setAccessToken(res.data.accessToken);
-  return res.data.user as User;
+  return res.data.developer;
 }
 
 export async function logout() {
@@ -32,9 +30,9 @@ export async function logout() {
   clearAccessToken();
 }
 
-export async function getMe(): Promise<User> {
-  const res = await api.get("/api/users/me");
-  return res.data.user;
+export async function getMe(): Promise<Developer> {
+  const res = await api.get("/api/auth/me");
+  return res.data.developer;
 }
 
 export async function refreshToken() {

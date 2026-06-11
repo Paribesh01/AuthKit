@@ -6,61 +6,133 @@ datasource db {
   provider = "postgresql"
 }
 
-model User {
-  id                String    @id @default(cuid())
-  email             String    @unique
-  username          String?   @unique
-  firstName         String?
-  lastName          String?
-  passwordHash      String?
-  imageUrl          String?
-  emailVerified     Boolean   @default(false)
-  twoFactorEnabled  Boolean   @default(false)
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+// ─── Developer (signs into our dashboard) ───────────────────────────────────
 
-  sessions          Session[]
-  emailVerifications EmailVerification[]
-  passwordResets    PasswordReset[]
+model Developer {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  firstName     String?
+  lastName      String?
+  passwordHash  String?
+  emailVerified Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  @@map("users")
+  sessions             DeveloperSession[]
+  emailVerifications   DeveloperEmailVerification[]
+  applications         Application[]
+
+  @@map("developers")
 }
 
-model Session {
+model DeveloperSession {
   id           String   @id @default(cuid())
-  userId       String
+  developerId  String
   refreshToken String   @unique
   userAgent    String?
   ipAddress    String?
   expiresAt    DateTime
   createdAt    DateTime @default(now())
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  developer Developer @relation(fields: [developerId], references: [id], onDelete: Cascade)
 
-  @@map("sessions")
+  @@map("developer_sessions")
 }
 
-model EmailVerification {
+model DeveloperEmailVerification {
+  id          String   @id @default(cuid())
+  developerId String
+  token       String   @unique
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+
+  developer Developer @relation(fields: [developerId], references: [id], onDelete: Cascade)
+
+  @@map("developer_email_verifications")
+}
+
+// ─── Application (created by a developer) ───────────────────────────────────
+
+model Application {
+  id              String   @id @default(cuid())
+  developerId     String
+  name            String
+  publishableKey  String   @unique
+  secretKey       String   @unique
+  allowedOrigins  String[] @default([])
+  webhookUrl      String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  developer Developer @relation(fields: [developerId], references: [id], onDelete: Cascade)
+  users     AppUser[]
+
+  @@map("applications")
+}
+
+// ─── AppUser (an end-user inside a developer's application) ─────────────────
+
+model AppUser {
+  id            String   @id @default(cuid())
+  applicationId String
+  externalId    String?
+  email         String?
+  username      String?
+  firstName     String?
+  lastName      String?
+  imageUrl      String?
+  passwordHash  String?
+  emailVerified Boolean  @default(false)
+  banned        Boolean  @default(false)
+  lastSignInAt  DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  application        Application          @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  sessions           AppSession[]
+  emailVerifications AppEmailVerification[]
+  passwordResets     AppPasswordReset[]
+
+  @@unique([applicationId, email])
+  @@unique([applicationId, username])
+  @@map("app_users")
+}
+
+model AppSession {
+  id           String   @id @default(cuid())
+  appUserId    String
+  refreshToken String   @unique
+  userAgent    String?
+  ipAddress    String?
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+
+  appUser AppUser @relation(fields: [appUserId], references: [id], onDelete: Cascade)
+
+  @@map("app_sessions")
+}
+
+model AppEmailVerification {
   id        String   @id @default(cuid())
-  userId    String
+  appUserId String
   token     String   @unique
   expiresAt DateTime
   createdAt DateTime @default(now())
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  appUser AppUser @relation(fields: [appUserId], references: [id], onDelete: Cascade)
 
-  @@map("email_verifications")
+  @@map("app_email_verifications")
 }
 
-model PasswordReset {
+model AppPasswordReset {
   id        String   @id @default(cuid())
-  userId    String
+  appUserId String
   token     String   @unique
   expiresAt DateTime
   used      Boolean  @default(false)
   createdAt DateTime @default(now())
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  appUser AppUser @relation(fields: [appUserId], references: [id], onDelete: Cascade)
 
-  @@map("password_resets")
+  @@map("app_password_resets")
 }
