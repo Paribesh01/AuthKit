@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { refreshToken } from "../../../../../lib/auth";
 import {
   listUsers,
   banUser,
@@ -29,11 +28,14 @@ export default function UsersPage() {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [actionUserId, setActionUserId] = useState<string | null>(null);
+  const initialized = useRef(false);
 
   useEffect(() => {
+    if (initialized.current) return;
+    initialized.current = true;
+
     async function load() {
       try {
-        await refreshToken();
         const data = await listUsers(appId, page);
         setUsers(data.users);
         setTotal(data.total);

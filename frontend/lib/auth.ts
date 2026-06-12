@@ -1,4 +1,4 @@
-import { api, setAccessToken, clearAccessToken } from "./api";
+import { api, setTokens, clearTokens } from "./api";
 
 export interface Developer {
   id: string;
@@ -15,27 +15,22 @@ export async function register(data: {
   lastName?: string;
 }): Promise<Developer> {
   const res = await api.post("/api/auth/register", data);
-  setAccessToken(res.data.accessToken);
+  setTokens(res.data.accessToken, res.data.refreshToken);
   return res.data.developer;
 }
 
 export async function login(email: string, password: string): Promise<Developer> {
   const res = await api.post("/api/auth/login", { email, password });
-  setAccessToken(res.data.accessToken);
+  setTokens(res.data.accessToken, res.data.refreshToken);
   return res.data.developer;
 }
 
 export async function logout() {
-  await api.post("/api/auth/logout");
-  clearAccessToken();
+  await api.post("/api/auth/logout").catch(() => {});
+  clearTokens();
 }
 
 export async function getMe(): Promise<Developer> {
   const res = await api.get("/api/auth/me");
   return res.data.developer;
-}
-
-export async function refreshToken() {
-  const res = await api.post("/api/auth/refresh");
-  setAccessToken(res.data.accessToken);
 }

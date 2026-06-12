@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { refreshToken } from "../../../../lib/auth";
 import {
   getApplication,
   updateApplication,
@@ -58,11 +57,14 @@ export default function AppDetailPage() {
   const [saving, setSaving] = useState(false);
   const [rotating, setRotating] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const initialized = useRef(false);
 
   useEffect(() => {
+    if (initialized.current) return;
+    initialized.current = true;
+
     async function load() {
       try {
-        await refreshToken();
         const data = await getApplication(appId);
         setApp(data);
         setName(data.name);

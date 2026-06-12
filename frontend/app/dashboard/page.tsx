@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { refreshToken, getMe, logout, Developer } from "../../lib/auth";
+import { getMe, logout, Developer } from "../../lib/auth";
 import { listApplications, createApplication, Application } from "../../lib/dashboard";
 
 export default function DashboardPage() {
@@ -14,11 +14,14 @@ export default function DashboardPage() {
   const [creating, setCreating] = useState(false);
   const [newAppName, setNewAppName] = useState("");
   const [showForm, setShowForm] = useState(false);
+  const initialized = useRef(false);
 
   useEffect(() => {
+    if (initialized.current) return;
+    initialized.current = true;
+
     async function load() {
       try {
-        await refreshToken();
         const [dev, applications] = await Promise.all([getMe(), listApplications()]);
         setDeveloper(dev);
         setApps(applications);

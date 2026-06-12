@@ -4,13 +4,10 @@ import { hashPassword, comparePassword } from "../lib/password";
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../lib/jwt";
 import { generateSecureToken, tokenExpiresAt } from "../lib/tokens";
 
-const REFRESH_COOKIE = "dev_refresh_token";
-const COOKIE_OPTIONS = {
-  httpOnly: true,
-  secure: process.env.NODE_ENV === "production",
-  sameSite: "lax" as const,
-  maxAge: 7 * 24 * 60 * 60 * 1000,
-};
+// Read refresh token from x-refresh-token header
+function getRefreshToken(req: Request): string | undefined {
+  return req.headers["x-refresh-token"] as string | undefined;
+}
 
 export async function register(req: Request, res: Response) {
   const { email, password, firstName, lastName } = req.body;
@@ -35,8 +32,6 @@ export async function register(req: Request, res: Response) {
     },
   });
 
-  // TODO: send verification email
-
   const accessToken = signAccessToken({ userId: developer.id, email: developer.email });
   const refreshToken = signRefreshToken({ userId: developer.id, email: developer.email });
 
@@ -50,7 +45,6 @@ export async function register(req: Request, res: Response) {
     },
   });
 
-  res.cookie(REFRESH_COOKIE, refreshToken, COOKIE_OPTIONS);
   res.status(201).json({
     developer: {
       id: developer.id,
@@ -60,6 +54,7 @@ export async function register(req: Request, res: Response) {
       emailVerified: developer.emailVerified,
     },
     accessToken,
+    refreshToken,
   });
 }
 
@@ -91,7 +86,6 @@ export async function login(req: Request, res: Response) {
     },
   });
 
-  res.cookie(REFRESH_COOKIE, refreshToken, COOKIE_OPTIONS);
   res.json({
     developer: {
       id: developer.id,
@@ -101,11 +95,12 @@ export async function login(req: Request, res: Response) {
       emailVerified: developer.emailVerified,
     },
     accessToken,
+    refreshToken,
   });
 }
 
 export async function refresh(req: Request, res: Response) {
-  const token = req.cookies[REFRESH_COOKIE];
+  const token = getRefreshToken(req);
   if (!token) {
     res.status(401).json({ error: "No refresh token" });
     return;
@@ -123,7 +118,6 @@ export async function refresh(req: Request, res: Response) {
     where: { refreshToken: token },
   });
   if (!session || session.expiresAt < new Date()) {
-    res.clearCookie(REFRESH_COOKIE);
     res.status(401).json({ error: "Session expired" });
     return;
   }
@@ -136,36 +130,23 @@ export async function refresh(req: Request, res: Response) {
     return;
   }
 
-  const newRefreshToken = signRefreshToken({ userId: developer.id, email: developer.email });
   const newAccessToken = signAccessToken({ userId: developer.id, email: developer.email });
 
-  await prisma.developerSession.update({
-    where: { id: session.id },
-    data: {
-      refreshToken: newRefreshToken,
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-    },
-  });
-
-  res.cookie(REFRESH_COOKIE, newRefreshToken, COOKIE_OPTIONS);
-  res.json({ accessToken: newAccessToken });
+  res.json({ accessToken: newAccessToken, refreshToken: token });
 }
 
 export async function logout(req: Request, res: Response) {
-  const token = req.cookies[REFRESH_COOKIE];
+  const token = getRefreshToken(req);
   if (token) {
     await prisma.developerSession.deleteMany({ where: { refreshToken: token } });
   }
-  res.clearCookie(REFRESH_COOKIE);
   res.json({ message: "Logged out" });
 }
 
 export async function verifyEmail(req: Request, res: Response) {
   const token = req.params.token as string;
 
-  const record = await prisma.developerEmailVerification.findUnique({
-    where: { token },
-  });
+  const record = await prisma.developerEmailVerification.findUnique({ where: { token } });
   if (!record || record.expiresAt < new Date()) {
     res.status(400).json({ error: "Invalid or expired verification link" });
     return;
