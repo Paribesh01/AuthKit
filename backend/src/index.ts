@@ -13,11 +13,21 @@ const app = express();
 const PORT = process.env.PORT || 4000;
 
 app.use(helmet());
+// /v1 — used by developers' apps from any origin (publishable key is the auth mechanism)
+app.use(
+  "/v1",
+  cors({
+    origin: "*",
+    allowedHeaders: ["Content-Type", "Authorization", "x-publishable-key", "x-refresh-token"],
+  })
+);
+
+// /api — developer dashboard, restricted to our own frontend
 app.use(
   cors({
     origin: process.env.CLIENT_URL || "http://localhost:3000",
     credentials: true,
-    allowedHeaders: ["Content-Type", "Authorization", "x-refresh-token", "x-publishable-key"],
+    allowedHeaders: ["Content-Type", "Authorization", "x-refresh-token"],
   })
 );
 app.use(express.json());

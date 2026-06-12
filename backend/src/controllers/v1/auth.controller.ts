@@ -7,7 +7,7 @@ import type { AppContext } from "../../middleware/apiKey.middleware";
 
 const REFRESH_COOKIE = "app_refresh_token";
 
-function cookieOptions(appId: string) {
+function cookieOptions() {
   return {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
@@ -33,6 +33,11 @@ function userPayload(user: {
     firstName: user.firstName,
     lastName: user.lastName,
   };
+}
+
+// Read refresh token from header (SDK) or cookie (browser)
+function getRefreshToken(req: Request): string | undefined {
+  return (req.headers["x-refresh-token"] as string) || req.cookies[REFRESH_COOKIE] || undefined;
 }
 
 export async function signUp(req: Request, res: Response) {
@@ -99,7 +104,7 @@ export async function signUp(req: Request, res: Response) {
     data: { lastSignInAt: new Date() },
   });
 
-  res.cookie(REFRESH_COOKIE, refreshToken, cookieOptions(app.id));
+  res.cookie(REFRESH_COOKIE, refreshToken, cookieOptions());
   res.status(201).json({
     user: {
       id: user.id,
@@ -111,6 +116,7 @@ export async function signUp(req: Request, res: Response) {
       createdAt: user.createdAt,
     },
     accessToken,
+    refreshToken, // also in body for SDK (header-based) clients
   });
 }
 
@@ -160,7 +166,7 @@ export async function signIn(req: Request, res: Response) {
     data: { lastSignInAt: new Date() },
   });
 
-  res.cookie(REFRESH_COOKIE, refreshToken, cookieOptions(app.id));
+  res.cookie(REFRESH_COOKIE, refreshToken, cookieOptions());
   res.json({
     user: {
       id: user.id,
@@ -171,12 +177,13 @@ export async function signIn(req: Request, res: Response) {
       emailVerified: user.emailVerified,
     },
     accessToken,
+    refreshToken, // also in body for SDK (header-based) clients
   });
 }
 
 export async function refreshSession(req: Request, res: Response) {
   const app = req.application! as AppContext;
-  const token = req.cookies[REFRESH_COOKIE];
+  const token = getRefreshToken(req);
 
   if (!token) {
     res.status(401).json({ error: "No refresh token" });
@@ -215,38 +222,26 @@ export async function refreshSession(req: Request, res: Response) {
     return;
   }
 
-  const newRefreshToken = signAppRefreshToken(
-    session.appUser.id,
-    app.id,
-    app.secretKey
-  );
+  // No rotation — return the same refresh token so concurrent/sequential
+  // calls don't invalidate each other (React StrictMode, etc.)
   const newAccessToken = signAppAccessToken(
     userPayload(session.appUser),
     app.secretKey
   );
 
-  await prisma.appSession.update({
-    where: { id: session.id },
-    data: {
-      refreshToken: newRefreshToken,
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-    },
-  });
-
-  res.cookie(REFRESH_COOKIE, newRefreshToken, cookieOptions(app.id));
-  res.json({ accessToken: newAccessToken });
+  res.json({ accessToken: newAccessToken, refreshToken: token });
 }
 
 export async function signOut(req: Request, res: Response) {
   const app = req.application! as AppContext;
-  const token = req.cookies[REFRESH_COOKIE];
+  const token = getRefreshToken(req);
 
   if (token) {
     try {
       verifyAppToken(token, app.secretKey);
       await prisma.appSession.deleteMany({ where: { refreshToken: token } });
     } catch {
-      // Token invalid — still clear the cookie
+      // Token invalid — still clear
     }
   }
 
@@ -324,7 +319,7 @@ export async function verifyToken(req: Request, res: Response) {
   try {
     const payload = verifyAppToken(token, app.secretKey);
     res.json({ valid: true, payload });
-  } catch (err) {
+  } catch {
     res.status(401).json({ valid: false, error: "Invalid or expired token" });
   }
 }
