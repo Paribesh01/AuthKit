@@ -26,11 +26,23 @@ export class AuthClient {
     if (typeof window !== "undefined") this._store().setItem(this.RT_KEY, token);
   }
 
+  private _saveAccessCookie(token: string) {
+    if (typeof document === "undefined") return;
+    // 15 min matches the access token TTL; not httpOnly so the SDK client can manage it
+    document.cookie = `__authkit_at=${encodeURIComponent(token)}; max-age=900; path=/; SameSite=Lax`;
+  }
+
+  private _clearAccessCookie() {
+    if (typeof document === "undefined") return;
+    document.cookie = "__authkit_at=; max-age=0; path=/";
+  }
+
   private _clearStorage() {
     this._refreshToken = null;
     this._accessToken = null;
     this._user = null;
     if (typeof window !== "undefined") this._store().removeItem(this.RT_KEY);
+    this._clearAccessCookie();
   }
 
   private async _request<T>(
@@ -71,6 +83,7 @@ export class AuthClient {
       .then((data) => {
         this._accessToken = data.accessToken;
         this._saveRefreshToken(data.refreshToken);
+        this._saveAccessCookie(data.accessToken);
         return data.accessToken;
       })
       .catch((err) => {
@@ -121,6 +134,7 @@ export class AuthClient {
 
     this._accessToken = data.accessToken;
     this._saveRefreshToken(data.refreshToken);
+    this._saveAccessCookie(data.accessToken);
     this._user = data.user;
     return data.user;
   }
@@ -134,6 +148,7 @@ export class AuthClient {
 
     this._accessToken = data.accessToken;
     this._saveRefreshToken(data.refreshToken);
+    this._saveAccessCookie(data.accessToken);
     this._user = data.user;
     return data.user;
   }
