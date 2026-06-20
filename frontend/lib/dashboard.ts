@@ -7,6 +7,7 @@ export interface Application {
   secretKey?: string;
   allowedOrigins: string[];
   webhookUrl?: string | null;
+  webhookSecret?: string | null;
   createdAt: string;
   updatedAt?: string;
   _count?: { users: number };
@@ -20,9 +21,18 @@ export interface AppUser {
   lastName: string | null;
   emailVerified: boolean;
   banned: boolean;
+  publicMetadata?: Record<string, unknown> | null;
   lastSignInAt: string | null;
   createdAt: string;
   _count?: { sessions: number };
+}
+
+export interface OAuthProvider {
+  id: string;
+  provider: "google" | "github";
+  clientId: string;
+  enabled: boolean;
+  createdAt: string;
 }
 
 // Applications
@@ -54,10 +64,31 @@ export async function deleteApplication(appId: string): Promise<void> {
 }
 
 export async function rotateSecretKey(appId: string): Promise<string> {
-  const res = await api.post(
-    `/api/dashboard/applications/${appId}/rotate-key`
-  );
+  const res = await api.post(`/api/dashboard/applications/${appId}/rotate-key`);
   return res.data.secretKey;
+}
+
+export async function rotateWebhookSecret(appId: string): Promise<string> {
+  const res = await api.post(`/api/dashboard/applications/${appId}/rotate-webhook-secret`);
+  return res.data.webhookSecret;
+}
+
+// OAuth providers
+export async function listOAuthProviders(appId: string): Promise<OAuthProvider[]> {
+  const res = await api.get(`/api/dashboard/applications/${appId}/oauth-providers`);
+  return res.data.providers;
+}
+
+export async function upsertOAuthProvider(
+  appId: string,
+  data: { provider: string; clientId: string; clientSecret?: string; enabled?: boolean }
+): Promise<OAuthProvider> {
+  const res = await api.post(`/api/dashboard/applications/${appId}/oauth-providers`, data);
+  return res.data.provider;
+}
+
+export async function deleteOAuthProvider(appId: string, provider: string): Promise<void> {
+  await api.delete(`/api/dashboard/applications/${appId}/oauth-providers/${provider}`);
 }
 
 // Users
