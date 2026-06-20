@@ -9,6 +9,7 @@ export interface AppContext {
   secretKey: string;
   allowedOrigins: string[];
   webhookUrl: string | null;
+  webhookSecret: string | null;
   createdAt: Date;
   updatedAt: Date;
 }

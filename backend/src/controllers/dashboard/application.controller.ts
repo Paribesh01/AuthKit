@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { prisma } from "../../db/prisma";
 import { generatePublishableKey, generateSecretKey } from "../../lib/keys";
+import { generateWebhookSecret } from "../../lib/webhook";
 
 export async function listApplications(req: Request, res: Response) {
   const applications = await prisma.application.findMany({
@@ -27,6 +28,7 @@ export async function createApplication(req: Request, res: Response) {
       name,
       publishableKey: generatePublishableKey(),
       secretKey: generateSecretKey(),
+      webhookSecret: generateWebhookSecret(),
       allowedOrigins: allowedOrigins ?? [],
     },
     select: {
@@ -55,6 +57,7 @@ export async function getApplication(req: Request, res: Response) {
       secretKey: true,
       allowedOrigins: true,
       webhookUrl: true,
+      webhookSecret: true,
       createdAt: true,
       updatedAt: true,
       _count: { select: { users: true } },
@@ -110,6 +113,24 @@ export async function deleteApplication(req: Request, res: Response) {
 
   await prisma.application.delete({ where: { id: req.params.appId as string } });
   res.json({ message: "Application deleted" });
+}
+
+export async function rotateWebhookSecret(req: Request, res: Response) {
+  const exists = await prisma.application.findFirst({
+    where: { id: req.params.appId as string, developerId: req.user!.userId },
+  });
+  if (!exists) {
+    res.status(404).json({ error: "Application not found" });
+    return;
+  }
+
+  const application = await prisma.application.update({
+    where: { id: req.params.appId as string },
+    data: { webhookSecret: generateWebhookSecret() },
+    select: { id: true, webhookSecret: true },
+  });
+
+  res.json({ webhookSecret: application.webhookSecret });
 }
 
 export async function rotateSecretKey(req: Request, res: Response) {

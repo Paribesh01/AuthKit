@@ -8,6 +8,7 @@ import {
   updateApplication,
   deleteApplication,
   rotateSecretKey,
+  rotateWebhookSecret,
 } from "../controllers/dashboard/application.controller";
 import {
   listUsers,
@@ -45,6 +46,7 @@ router.patch(
 
 router.delete("/applications/:appId", deleteApplication);
 router.post("/applications/:appId/rotate-key", rotateSecretKey);
+router.post("/applications/:appId/rotate-webhook-secret", rotateWebhookSecret);
 
 // Users within an application
 router.get("/applications/:appId/users", listUsers);

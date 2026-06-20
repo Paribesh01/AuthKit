@@ -4,6 +4,7 @@ import { hashPassword, comparePassword } from "../../lib/password";
 import { signAppAccessToken, signAppRefreshToken, verifyAppToken } from "../../lib/appJwt";
 import { generateSecureToken, tokenExpiresAt } from "../../lib/tokens";
 import { sendAppUserPasswordReset, sendAppUserEmailVerification } from "../../lib/email";
+import { fireWebhook } from "../../lib/webhook";
 import type { AppContext } from "../../middleware/apiKey.middleware";
 
 const REFRESH_COOKIE = "app_refresh_token";
@@ -105,6 +106,13 @@ export async function signUp(req: Request, res: Response) {
     data: { lastSignInAt: new Date() },
   });
 
+  if (app.webhookUrl && app.webhookSecret) {
+    fireWebhook(app.webhookUrl, app.webhookSecret, "user.created", {
+      id: user.id, email: user.email, username: user.username,
+      firstName: user.firstName, lastName: user.lastName,
+    });
+  }
+
   res.cookie(REFRESH_COOKIE, refreshToken, cookieOptions());
   res.status(201).json({
     user: {
@@ -117,7 +125,7 @@ export async function signUp(req: Request, res: Response) {
       createdAt: user.createdAt,
     },
     accessToken,
-    refreshToken, // also in body for SDK (header-based) clients
+    refreshToken,
   });
 }
 
@@ -167,6 +175,12 @@ export async function signIn(req: Request, res: Response) {
     data: { lastSignInAt: new Date() },
   });
 
+  if (app.webhookUrl && app.webhookSecret) {
+    fireWebhook(app.webhookUrl, app.webhookSecret, "user.signed_in", {
+      id: user.id, email: user.email, username: user.username,
+    });
+  }
+
   res.cookie(REFRESH_COOKIE, refreshToken, cookieOptions());
   res.json({
     user: {
@@ -178,7 +192,7 @@ export async function signIn(req: Request, res: Response) {
       emailVerified: user.emailVerified,
     },
     accessToken,
-    refreshToken, // also in body for SDK (header-based) clients
+    refreshToken,
   });
 }
 

@@ -1,4 +1,5 @@
 import jwt from "jsonwebtoken";
+import crypto from "crypto";
 
 export interface TokenPayload {
   sub: string;
@@ -58,6 +59,65 @@ export function verifyToken(
  * import { authMiddleware } from "authkit/server";
  * app.use(authMiddleware({ secretKey: process.env.AUTH_SECRET_KEY }));
  */
+// ── Webhook verification ─────────────────────────────────────────────────────
+
+export type WebhookEventType =
+  | "user.created"
+  | "user.signed_in"
+  | "user.signed_out"
+  | "user.deleted"
+  | "user.banned"
+  | "user.unbanned"
+  | "user.password_reset";
+
+export interface WebhookEvent<T = Record<string, unknown>> {
+  type: WebhookEventType;
+  timestamp: number;
+  data: T;
+}
+
+/**
+ * Verify an incoming webhook request and return the parsed payload.
+ * Call this in your webhook handler endpoint.
+ *
+ * @example
+ * import { verifyWebhook } from "authkit/server";
+ *
+ * // Express
+ * app.post("/webhooks/auth", express.raw({ type: "application/json" }), (req, res) => {
+ *   const event = verifyWebhook(req.body, req.headers["x-authkit-signature"], process.env.WEBHOOK_SECRET);
+ *   if (!event) return res.status(400).json({ error: "Invalid signature" });
+ *   if (event.type === "user.created") { ... }
+ *   res.json({ received: true });
+ * });
+ */
+export function verifyWebhook(
+  rawBody: string | Buffer,
+  signature: string | string[] | undefined,
+  webhookSecret: string
+): WebhookEvent | null {
+  if (!signature || Array.isArray(signature)) return null;
+
+  const body = typeof rawBody === "string" ? rawBody : rawBody.toString("utf8");
+  const expected = "sha256=" + crypto.createHmac("sha256", webhookSecret).update(body).digest("hex");
+
+  // Timing-safe comparison
+  try {
+    const sigBuf = Buffer.from(signature);
+    const expBuf = Buffer.from(expected);
+    if (sigBuf.length !== expBuf.length) return null;
+    if (!crypto.timingSafeEqual(sigBuf, expBuf)) return null;
+  } catch {
+    return null;
+  }
+
+  try {
+    return JSON.parse(body) as WebhookEvent;
+  } catch {
+    return null;
+  }
+}
+
 export function authMiddleware(options: { secretKey: string }) {
   return (
     req: { headers: { authorization?: string }; authUser?: TokenPayload },

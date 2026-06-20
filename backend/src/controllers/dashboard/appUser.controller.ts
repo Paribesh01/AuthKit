@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { prisma } from "../../db/prisma";
+import { fireWebhook } from "../../lib/webhook";
 
 async function getOwnedApp(developerId: string, appId: string) {
   return prisma.application.findFirst({
@@ -104,8 +105,11 @@ export async function banUser(req: Request, res: Response) {
     select: { id: true, banned: true },
   });
 
-  // Revoke all active sessions for this user
   await prisma.appSession.deleteMany({ where: { appUserId: user.id } });
+
+  if (app.webhookUrl && app.webhookSecret) {
+    fireWebhook(app.webhookUrl, app.webhookSecret, "user.banned", { id: user.id, email: user.email });
+  }
 
   res.json({ user: updated });
 }
@@ -132,6 +136,10 @@ export async function unbanUser(req: Request, res: Response) {
     select: { id: true, banned: true },
   });
 
+  if (app.webhookUrl && app.webhookSecret) {
+    fireWebhook(app.webhookUrl, app.webhookSecret, "user.unbanned", { id: user.id, email: user.email });
+  }
+
   res.json({ user: updated });
 }
 
@@ -152,6 +160,11 @@ export async function deleteUser(req: Request, res: Response) {
   }
 
   await prisma.appUser.delete({ where: { id: user.id } });
+
+  if (app.webhookUrl && app.webhookSecret) {
+    fireWebhook(app.webhookUrl, app.webhookSecret, "user.deleted", { id: user.id, email: user.email });
+  }
+
   res.json({ message: "User deleted" });
 }
 
