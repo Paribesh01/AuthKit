@@ -9,6 +9,9 @@ import {
   signOut,
   getMe,
   verifyToken,
+  verifyEmail,
+  forgotPassword,
+  resetPassword,
 } from "../controllers/v1/auth.controller";
 
 const router = Router();
@@ -46,6 +49,28 @@ router.post("/sign-out", requirePublishableKey, signOut);
 
 // me uses publishable key + the user's access token in Authorization header
 router.get("/me", requirePublishableKey, getMe);
+
+// Email verification (link from the verification email)
+router.get("/verify-email/:token", verifyEmail);
+
+// Password reset (called from the developer's app)
+router.post(
+  "/forgot-password",
+  requirePublishableKey,
+  [body("email").isEmail().normalizeEmail(), body("redirectUrl").optional().isURL()],
+  validate,
+  forgotPassword
+);
+router.post(
+  "/reset-password",
+  requirePublishableKey,
+  [
+    body("token").notEmpty(),
+    body("password").isLength({ min: 8 }).withMessage("Password must be at least 8 characters"),
+  ],
+  validate,
+  resetPassword
+);
 
 // Secret-key-only endpoints — called from developer's backend server
 router.post("/verify-token", requireSecretKey, verifyToken);

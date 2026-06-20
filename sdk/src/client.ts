@@ -161,6 +161,20 @@ export class AuthClient {
     }
   }
 
+  async forgotPassword(email: string, redirectUrl?: string): Promise<void> {
+    await this._request("/forgot-password", {
+      method: "POST",
+      body: JSON.stringify({ email, redirectUrl }),
+    });
+  }
+
+  async resetPassword(token: string, password: string): Promise<void> {
+    await this._request("/reset-password", {
+      method: "POST",
+      body: JSON.stringify({ token, password }),
+    });
+  }
+
   getAccessToken(): string | null {
     return this._accessToken;
   }

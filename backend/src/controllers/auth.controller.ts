@@ -3,6 +3,7 @@ import { prisma } from "../db/prisma";
 import { hashPassword, comparePassword } from "../lib/password";
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../lib/jwt";
 import { generateSecureToken, tokenExpiresAt } from "../lib/tokens";
+import { sendDeveloperPasswordReset } from "../lib/email";
 
 // Read refresh token from x-refresh-token header
 function getRefreshToken(req: Request): string | undefined {
@@ -159,6 +160,60 @@ export async function verifyEmail(req: Request, res: Response) {
 
   await prisma.developerEmailVerification.delete({ where: { id: record.id } });
   res.json({ message: "Email verified" });
+}
+
+export async function forgotPassword(req: Request, res: Response) {
+  const { email } = req.body;
+  const developer = await prisma.developer.findUnique({ where: { email } });
+  // Always return 200 to avoid leaking which emails are registered
+  if (!developer) {
+    res.json({ message: "If that email exists, a reset link has been sent." });
+    return;
+  }
+
+  // Invalidate existing tokens
+  await prisma.developerPasswordReset.updateMany({
+    where: { developerId: developer.id, used: false },
+    data: { used: true },
+  });
+
+  const token = generateSecureToken();
+  await prisma.developerPasswordReset.create({
+    data: {
+      developerId: developer.id,
+      token,
+      expiresAt: tokenExpiresAt(60),
+    },
+  });
+
+  await sendDeveloperPasswordReset(developer.email, token);
+  res.json({ message: "If that email exists, a reset link has been sent." });
+}
+
+export async function resetPassword(req: Request, res: Response) {
+  const { token, password } = req.body;
+
+  const record = await prisma.developerPasswordReset.findUnique({ where: { token } });
+  if (!record || record.used || record.expiresAt < new Date()) {
+    res.status(400).json({ error: "Invalid or expired reset link" });
+    return;
+  }
+
+  const passwordHash = await hashPassword(password);
+  await prisma.developer.update({
+    where: { id: record.developerId },
+    data: { passwordHash },
+  });
+
+  await prisma.developerPasswordReset.update({
+    where: { id: record.id },
+    data: { used: true },
+  });
+
+  // Invalidate all sessions so old passwords can't be used
+  await prisma.developerSession.deleteMany({ where: { developerId: record.developerId } });
+
+  res.json({ message: "Password reset successfully. Please sign in." });
 }
 
 export async function getMe(req: Request, res: Response) {

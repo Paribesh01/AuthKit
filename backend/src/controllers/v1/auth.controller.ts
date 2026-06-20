@@ -3,6 +3,7 @@ import { prisma } from "../../db/prisma";
 import { hashPassword, comparePassword } from "../../lib/password";
 import { signAppAccessToken, signAppRefreshToken, verifyAppToken } from "../../lib/appJwt";
 import { generateSecureToken, tokenExpiresAt } from "../../lib/tokens";
+import { sendAppUserPasswordReset, sendAppUserEmailVerification } from "../../lib/email";
 import type { AppContext } from "../../middleware/apiKey.middleware";
 
 const REFRESH_COOKIE = "app_refresh_token";
@@ -82,7 +83,7 @@ export async function signUp(req: Request, res: Response) {
         expiresAt: tokenExpiresAt(60),
       },
     });
-    // TODO: send verification email via developer's webhook or our email service
+    await sendAppUserEmailVerification(email, verifyToken, app.name).catch(() => {});
   }
 
   const payload = userPayload(user);
@@ -286,6 +287,7 @@ export async function getMe(req: Request, res: Response) {
       imageUrl: true,
       emailVerified: true,
       banned: true,
+      publicMetadata: true,
       lastSignInAt: true,
       createdAt: true,
       updatedAt: true,
@@ -303,6 +305,75 @@ export async function getMe(req: Request, res: Response) {
   }
 
   res.json({ user });
+}
+
+export async function verifyEmail(req: Request, res: Response) {
+  const token = req.params.token as string;
+  const record = await prisma.appEmailVerification.findUnique({ where: { token } });
+  if (!record || record.expiresAt < new Date()) {
+    res.status(400).send("<p>Invalid or expired verification link.</p>");
+    return;
+  }
+  await prisma.appUser.update({
+    where: { id: record.appUserId },
+    data: { emailVerified: true },
+  });
+  await prisma.appEmailVerification.delete({ where: { id: record.id } });
+  res.send("<p>Email verified! You can close this tab.</p>");
+}
+
+export async function forgotPassword(req: Request, res: Response) {
+  const app = req.application! as AppContext;
+  const { email, redirectUrl } = req.body;
+
+  const user = await prisma.appUser.findFirst({
+    where: { applicationId: app.id, email },
+  });
+
+  if (!user || !email) {
+    res.json({ message: "If that email exists, a reset link has been sent." });
+    return;
+  }
+
+  await prisma.appPasswordReset.updateMany({
+    where: { appUserId: user.id, used: false },
+    data: { used: true },
+  });
+
+  const token = generateSecureToken();
+  await prisma.appPasswordReset.create({
+    data: { appUserId: user.id, token, expiresAt: tokenExpiresAt(60) },
+  });
+
+  const callbackUrl = redirectUrl || `${process.env.CLIENT_URL}/reset-password`;
+  await sendAppUserPasswordReset(email, token, app.name, callbackUrl).catch(() => {});
+  res.json({ message: "If that email exists, a reset link has been sent." });
+}
+
+export async function resetPassword(req: Request, res: Response) {
+  const app = req.application! as AppContext;
+  const { token, password } = req.body;
+
+  const record = await prisma.appPasswordReset.findUnique({ where: { token } });
+  if (!record || record.used || record.expiresAt < new Date()) {
+    res.status(400).json({ error: "Invalid or expired reset link" });
+    return;
+  }
+
+  const user = await prisma.appUser.findFirst({
+    where: { id: record.appUserId, applicationId: app.id },
+  });
+  if (!user) {
+    res.status(400).json({ error: "User not found" });
+    return;
+  }
+
+  const passwordHash = await hashPassword(password);
+  await prisma.appUser.update({ where: { id: user.id }, data: { passwordHash } });
+  await prisma.appPasswordReset.update({ where: { id: record.id }, data: { used: true } });
+  await prisma.appSession.deleteMany({ where: { appUserId: user.id } });
+
+  res.json({ message: "Password reset successfully. Please sign in." });
 }
 
 // Backend-only endpoint: verify a token without needing the user's browser

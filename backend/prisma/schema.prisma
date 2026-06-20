@@ -20,6 +20,7 @@ model Developer {
 
   sessions             DeveloperSession[]
   emailVerifications   DeveloperEmailVerification[]
+  passwordResets       DeveloperPasswordReset[]
   applications         Application[]
 
   @@map("developers")
@@ -51,6 +52,19 @@ model DeveloperEmailVerification {
   @@map("developer_email_verifications")
 }
 
+model DeveloperPasswordReset {
+  id          String   @id @default(cuid())
+  developerId String
+  token       String   @unique
+  expiresAt   DateTime
+  used        Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  developer Developer @relation(fields: [developerId], references: [id], onDelete: Cascade)
+
+  @@map("developer_password_resets")
+}
+
 // ─── Application (created by a developer) ───────────────────────────────────
 
 model Application {
@@ -61,11 +75,13 @@ model Application {
   secretKey       String   @unique
   allowedOrigins  String[] @default([])
   webhookUrl      String?
+  webhookSecret   String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  developer Developer @relation(fields: [developerId], references: [id], onDelete: Cascade)
-  users     AppUser[]
+  developer      Developer       @relation(fields: [developerId], references: [id], onDelete: Cascade)
+  users          AppUser[]
+  oauthProviders OAuthProvider[]
 
   @@map("applications")
 }
@@ -73,25 +89,28 @@ model Application {
 // ─── AppUser (an end-user inside a developer's application) ─────────────────
 
 model AppUser {
-  id            String   @id @default(cuid())
-  applicationId String
-  externalId    String?
-  email         String?
-  username      String?
-  firstName     String?
-  lastName      String?
-  imageUrl      String?
-  passwordHash  String?
-  emailVerified Boolean  @default(false)
-  banned        Boolean  @default(false)
-  lastSignInAt  DateTime?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id              String   @id @default(cuid())
+  applicationId   String
+  externalId      String?
+  email           String?
+  username        String?
+  firstName       String?
+  lastName        String?
+  imageUrl        String?
+  passwordHash    String?
+  emailVerified   Boolean  @default(false)
+  banned          Boolean  @default(false)
+  publicMetadata  Json?
+  privateMetadata Json?
+  lastSignInAt    DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   application        Application          @relation(fields: [applicationId], references: [id], onDelete: Cascade)
   sessions           AppSession[]
   emailVerifications AppEmailVerification[]
   passwordResets     AppPasswordReset[]
+  oauthAccounts      OAuthAccount[]
 
   @@unique([applicationId, email])
   @@unique([applicationId, username])
@@ -135,4 +154,37 @@ model AppPasswordReset {
   appUser AppUser @relation(fields: [appUserId], references: [id], onDelete: Cascade)
 
   @@map("app_password_resets")
+}
+
+// ─── OAuth ───────────────────────────────────────────────────────────────────
+
+model OAuthProvider {
+  id            String   @id @default(cuid())
+  applicationId String
+  provider      String   // "google" | "github"
+  clientId      String
+  clientSecret  String
+  enabled       Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@unique([applicationId, provider])
+  @@map("oauth_providers")
+}
+
+model OAuthAccount {
+  id         String   @id @default(cuid())
+  appUserId  String
+  provider   String   // "google" | "github"
+  providerId String   // provider's user ID
+  email      String?
+  createdAt  DateTime @default(now())
+
+  appUser AppUser @relation(fields: [appUserId], references: [id], onDelete: Cascade)
+
+  @@unique([appUserId, provider])
+  @@unique([provider, providerId])
+  @@map("oauth_accounts")
 }
