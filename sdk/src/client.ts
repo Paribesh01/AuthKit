@@ -176,6 +176,48 @@ export class AuthClient {
     }
   }
 
+  /**
+   * Redirect the browser to begin an OAuth sign-in flow.
+   * Call this when the user clicks "Sign in with Google/GitHub".
+   *
+   * @param provider "google" | "github"
+   * @param redirectUrl The URL in YOUR app where the user lands after OAuth
+   *   (e.g. "https://myapp.com/auth/callback"). The SDK reads tokens there
+   *   via handleOAuthCallback().
+   */
+  signInWithOAuth(provider: "google" | "github", options: { redirectUrl: string }) {
+    const url = new URL(`${this.config.baseUrl}/v1/oauth/${provider}`);
+    url.searchParams.set("publishable_key", this.config.publishableKey);
+    url.searchParams.set("redirect_url", options.redirectUrl);
+    window.location.href = url.toString();
+  }
+
+  /**
+   * Call this on your OAuth callback page to capture the tokens returned
+   * by the auth service and sign the user in.
+   * Returns the user if successful, null otherwise.
+   */
+  async handleOAuthCallback(): Promise<AuthUser | null> {
+    if (typeof window === "undefined") return null;
+    const params = new URLSearchParams(window.location.search);
+    const accessToken = params.get("accessToken");
+    const refreshToken = params.get("refreshToken");
+
+    if (!accessToken || !refreshToken) return null;
+
+    this._accessToken = accessToken;
+    this._saveRefreshToken(refreshToken);
+    this._saveAccessCookie(accessToken);
+
+    // Clean tokens out of the URL (security: don't leave them in history)
+    const clean = new URL(window.location.href);
+    clean.searchParams.delete("accessToken");
+    clean.searchParams.delete("refreshToken");
+    window.history.replaceState({}, "", clean.toString());
+
+    return this.getUser();
+  }
+
   async forgotPassword(email: string, redirectUrl?: string): Promise<void> {
     await this._request("/forgot-password", {
       method: "POST",

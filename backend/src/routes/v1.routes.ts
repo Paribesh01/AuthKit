@@ -2,6 +2,7 @@ import { Router } from "express";
 import { body } from "express-validator";
 import { validate } from "../middleware/validate.middleware";
 import { requirePublishableKey, requireSecretKey } from "../middleware/apiKey.middleware";
+import { initiateOAuth, oauthCallback } from "../controllers/v1/oauth.controller";
 import {
   signUp,
   signIn,
@@ -71,6 +72,10 @@ router.post(
   validate,
   resetPassword
 );
+
+// OAuth — publishable key + redirect_url in query params (browser redirect flow)
+router.get("/oauth/:provider", initiateOAuth);
+router.get("/oauth/:provider/callback", oauthCallback);
 
 // Secret-key-only endpoints — called from developer's backend server
 router.post("/verify-token", requireSecretKey, verifyToken);

@@ -18,6 +18,11 @@ import {
   deleteUser,
   revokeUserSessions,
 } from "../controllers/dashboard/appUser.controller";
+import {
+  listOAuthProviders,
+  upsertOAuthProvider,
+  deleteOAuthProvider,
+} from "../controllers/dashboard/oauthProvider.controller";
 
 const router = Router();
 
@@ -47,6 +52,21 @@ router.patch(
 router.delete("/applications/:appId", deleteApplication);
 router.post("/applications/:appId/rotate-key", rotateSecretKey);
 router.post("/applications/:appId/rotate-webhook-secret", rotateWebhookSecret);
+
+// OAuth providers for an application
+router.get("/applications/:appId/oauth-providers", listOAuthProviders);
+router.post(
+  "/applications/:appId/oauth-providers",
+  [
+    body("provider").isIn(["google", "github"]),
+    body("clientId").notEmpty(),
+    body("clientSecret").optional().notEmpty(),
+    body("enabled").optional().isBoolean(),
+  ],
+  validate,
+  upsertOAuthProvider
+);
+router.delete("/applications/:appId/oauth-providers/:provider", deleteOAuthProvider);
 
 // Users within an application
 router.get("/applications/:appId/users", listUsers);
