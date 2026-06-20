@@ -1,4 +1,4 @@
-import type { AuthConfig, AuthUser, SignInParams, SignUpParams } from "./types";
+import type { AuthConfig, AuthUser, Session, SignInParams, SignUpParams } from "./types";
 
 export class AuthClient {
   private config: AuthConfig;
@@ -216,6 +216,20 @@ export class AuthClient {
     window.history.replaceState({}, "", clean.toString());
 
     return this.getUser();
+  }
+
+  async getSessions(): Promise<Session[]> {
+    const data = await this._authedRequest<{ sessions: Session[] }>("/me/sessions");
+    return data.sessions;
+  }
+
+  async revokeSession(sessionId: string): Promise<void> {
+    await this._authedRequest(`/me/sessions/${sessionId}`, { method: "DELETE" });
+  }
+
+  async revokeAllSessions(): Promise<void> {
+    await this._authedRequest("/me/sessions", { method: "DELETE" });
+    this._clearStorage();
   }
 
   async updateMetadata(publicMetadata: Record<string, unknown>): Promise<AuthUser> {

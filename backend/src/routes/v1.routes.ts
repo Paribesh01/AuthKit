@@ -16,6 +16,7 @@ import {
   resetPassword,
 } from "../controllers/v1/auth.controller";
 import { updateUserMetadata, getUser as getAppUser } from "../controllers/v1/users.controller";
+import { listSessions, revokeSession, revokeAllSessions } from "../controllers/v1/sessions.controller";
 
 const router = Router();
 
@@ -78,6 +79,11 @@ router.post(
 // OAuth — publishable key + redirect_url in query params (browser redirect flow)
 router.get("/oauth/:provider", initiateOAuth);
 router.get("/oauth/:provider/callback", oauthCallback);
+
+// Session management (access token required)
+router.get("/me/sessions", requirePublishableKey, listSessions);
+router.delete("/me/sessions", requirePublishableKey, revokeAllSessions);
+router.delete("/me/sessions/:sessionId", requirePublishableKey, revokeSession);
 
 // Current user metadata (access token required)
 router.patch(

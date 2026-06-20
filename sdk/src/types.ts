@@ -12,6 +12,15 @@ export interface AuthUser {
   createdAt?: string;
 }
 
+export interface Session {
+  id: string;
+  userAgent: string | null;
+  ipAddress: string | null;
+  createdAt: string;
+  expiresAt: string;
+  isCurrent: boolean;
+}
+
 export interface AuthConfig {
   /** Your app's publishable key — safe to expose in frontend code */
   publishableKey: string;
