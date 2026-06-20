@@ -9,11 +9,13 @@ import {
   refreshSession,
   signOut,
   getMe,
+  updateMyMetadata,
   verifyToken,
   verifyEmail,
   forgotPassword,
   resetPassword,
 } from "../controllers/v1/auth.controller";
+import { updateUserMetadata, getUser as getAppUser } from "../controllers/v1/users.controller";
 
 const router = Router();
 
@@ -77,7 +79,27 @@ router.post(
 router.get("/oauth/:provider", initiateOAuth);
 router.get("/oauth/:provider/callback", oauthCallback);
 
+// Current user metadata (access token required)
+router.patch(
+  "/me/metadata",
+  requirePublishableKey,
+  [body("publicMetadata").isObject()],
+  validate,
+  updateMyMetadata
+);
+
 // Secret-key-only endpoints — called from developer's backend server
 router.post("/verify-token", requireSecretKey, verifyToken);
+router.get("/users/:userId", requireSecretKey, getAppUser);
+router.patch(
+  "/users/:userId/metadata",
+  requireSecretKey,
+  [
+    body("publicMetadata").optional().isObject(),
+    body("privateMetadata").optional().isObject(),
+  ],
+  validate,
+  updateUserMetadata
+);
 
 export default router;

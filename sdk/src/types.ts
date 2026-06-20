@@ -7,6 +7,7 @@ export interface AuthUser {
   emailVerified: boolean;
   imageUrl?: string | null;
   banned?: boolean;
+  publicMetadata?: Record<string, unknown> | null;
   lastSignInAt?: string | null;
   createdAt?: string;
 }

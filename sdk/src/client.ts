@@ -218,6 +218,15 @@ export class AuthClient {
     return this.getUser();
   }
 
+  async updateMetadata(publicMetadata: Record<string, unknown>): Promise<AuthUser> {
+    const data = await this._authedRequest<{ user: AuthUser }>("/me/metadata", {
+      method: "PATCH",
+      body: JSON.stringify({ publicMetadata }),
+    });
+    this._user = { ...this._user, ...data.user } as AuthUser;
+    return this._user!;
+  }
+
   async forgotPassword(email: string, redirectUrl?: string): Promise<void> {
     await this._request("/forgot-password", {
       method: "POST",

@@ -16,6 +16,7 @@ import {
   banUser,
   unbanUser,
   deleteUser,
+  updateUserMetadata,
   revokeUserSessions,
 } from "../controllers/dashboard/appUser.controller";
 import {
@@ -74,6 +75,15 @@ router.get("/applications/:appId/users/:userId", getUser);
 router.post("/applications/:appId/users/:userId/ban", banUser);
 router.post("/applications/:appId/users/:userId/unban", unbanUser);
 router.delete("/applications/:appId/users/:userId", deleteUser);
+router.patch(
+  "/applications/:appId/users/:userId/metadata",
+  [
+    body("publicMetadata").optional().isObject(),
+    body("privateMetadata").optional().isObject(),
+  ],
+  validate,
+  updateUserMetadata
+);
 router.delete("/applications/:appId/users/:userId/sessions", revokeUserSessions);
 
 export default router;

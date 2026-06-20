@@ -321,6 +321,59 @@ export async function getMe(req: Request, res: Response) {
   res.json({ user });
 }
 
+export async function updateMyMetadata(req: Request, res: Response) {
+  const app = req.application! as AppContext;
+
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith("Bearer ")) {
+    res.status(401).json({ error: "Missing access token" });
+    return;
+  }
+
+  let payload: { sub: string; azp: string };
+  try {
+    payload = verifyAppToken(authHeader.slice(7), app.secretKey) as unknown as { sub: string; azp: string };
+  } catch {
+    res.status(401).json({ error: "Invalid or expired access token" });
+    return;
+  }
+
+  if (payload.azp !== app.id) {
+    res.status(401).json({ error: "Token does not belong to this application" });
+    return;
+  }
+
+  const { publicMetadata } = req.body;
+  if (publicMetadata === undefined) {
+    res.status(422).json({ error: "publicMetadata is required" });
+    return;
+  }
+
+  const existing = await prisma.appUser.findFirst({
+    where: { id: payload.sub, applicationId: app.id },
+    select: { publicMetadata: true },
+  });
+  if (!existing) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+
+  const merged = {
+    ...(typeof existing.publicMetadata === "object" && existing.publicMetadata !== null
+      ? existing.publicMetadata
+      : {}),
+    ...publicMetadata,
+  };
+
+  const user = await prisma.appUser.update({
+    where: { id: payload.sub },
+    data: { publicMetadata: merged },
+    select: { id: true, publicMetadata: true },
+  });
+
+  res.json({ user });
+}
+
 export async function verifyEmail(req: Request, res: Response) {
   const token = req.params.token as string;
   const record = await prisma.appEmailVerification.findUnique({ where: { token } });

@@ -168,6 +168,36 @@ export async function deleteUser(req: Request, res: Response) {
   res.json({ message: "User deleted" });
 }
 
+export async function updateUserMetadata(req: Request, res: Response) {
+  const appId = req.params.appId as string;
+  const app = await getOwnedApp(req.user!.userId, appId);
+  if (!app) { res.status(404).json({ error: "Application not found" }); return; }
+
+  const user = await prisma.appUser.findFirst({
+    where: { id: req.params.userId as string, applicationId: appId },
+    select: { publicMetadata: true, privateMetadata: true },
+  });
+  if (!user) { res.status(404).json({ error: "User not found" }); return; }
+
+  const { publicMetadata, privateMetadata } = req.body;
+
+  const merge = (existing: unknown, incoming: unknown) => ({
+    ...(typeof existing === "object" && existing !== null ? existing : {}),
+    ...(typeof incoming === "object" && incoming !== null ? incoming : {}),
+  });
+
+  const updated = await prisma.appUser.update({
+    where: { id: req.params.userId as string },
+    data: {
+      ...(publicMetadata !== undefined && { publicMetadata: merge(user.publicMetadata, publicMetadata) }),
+      ...(privateMetadata !== undefined && { privateMetadata: merge(user.privateMetadata, privateMetadata) }),
+    },
+    select: { id: true, publicMetadata: true, privateMetadata: true },
+  });
+
+  res.json({ user: updated });
+}
+
 export async function revokeUserSessions(req: Request, res: Response) {
   const appId = req.params.appId as string;
   const app = await getOwnedApp(req.user!.userId, appId);
