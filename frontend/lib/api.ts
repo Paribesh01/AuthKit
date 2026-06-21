@@ -1,6 +1,8 @@
 import axios, { AxiosError } from "axios";
 
-export const api = axios.create({ baseURL: "" });
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+
+export const api = axios.create({ baseURL: BASE_URL });
 
 const RT_KEY = "__rt";
 
@@ -30,7 +32,7 @@ function doRefresh(): Promise<string> {
 
   _refreshPromise = axios
     .post<{ accessToken: string; refreshToken: string }>(
-      "/api/auth/refresh",
+      `${BASE_URL}/api/auth/refresh`,
       {},
       { headers: { "x-refresh-token": _refreshToken ?? "" } }
     )
