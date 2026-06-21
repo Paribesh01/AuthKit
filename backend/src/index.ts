@@ -31,8 +31,7 @@ app.use(
   cors({
     origin: (origin, cb) => {
       // allow requests with no origin (curl, Postman, server-to-server)
-      if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
-      cb(new Error(`CORS: origin ${origin} not allowed`));
+      cb(null, !origin || allowedOrigins.includes(origin));
     },
     credentials: true,
     allowedHeaders: ["Content-Type", "Authorization", "x-refresh-token"],
