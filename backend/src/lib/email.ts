@@ -1,14 +1,19 @@
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-const FROM = process.env.EMAIL_FROM || "onboarding@resend.dev";
-const APP_URL = process.env.CLIENT_URL || "http://localhost:3000";
-const API_URL = process.env.API_URL || "http://localhost:4000";
+// Lazy — don't instantiate at module load time so a missing key
+// doesn't crash the server before any request is served.
+function getResend() {
+  return new Resend(process.env.RESEND_API_KEY);
+}
+
+const FROM = () => process.env.EMAIL_FROM || "onboarding@resend.dev";
+const APP_URL = () => process.env.CLIENT_URL || "http://localhost:3000";
+const API_URL = () => process.env.API_URL || "http://localhost:4000";
 
 export async function sendDeveloperPasswordReset(email: string, token: string) {
-  const url = `${APP_URL}/reset-password?token=${token}`;
-  await resend.emails.send({
-    from: FROM,
+  const url = `${APP_URL()}/reset-password?token=${token}`;
+  await getResend().emails.send({
+    from: FROM(),
     to: email,
     subject: "Reset your password",
     html: `
@@ -20,9 +25,9 @@ export async function sendDeveloperPasswordReset(email: string, token: string) {
 }
 
 export async function sendDeveloperEmailVerification(email: string, token: string) {
-  const url = `${API_URL}/api/auth/verify-email/${token}`;
-  await resend.emails.send({
-    from: FROM,
+  const url = `${API_URL()}/api/auth/verify-email/${token}`;
+  await getResend().emails.send({
+    from: FROM(),
     to: email,
     subject: "Verify your email",
     html: `
@@ -40,8 +45,8 @@ export async function sendAppUserPasswordReset(
   redirectUrl: string
 ) {
   const url = `${redirectUrl}?token=${token}`;
-  await resend.emails.send({
-    from: FROM,
+  await getResend().emails.send({
+    from: FROM(),
     to: email,
     subject: `Reset your ${appName} password`,
     html: `
@@ -57,9 +62,9 @@ export async function sendAppUserEmailVerification(
   token: string,
   appName: string
 ) {
-  const url = `${API_URL}/v1/verify-email/${token}`;
-  await resend.emails.send({
-    from: FROM,
+  const url = `${API_URL()}/v1/verify-email/${token}`;
+  await getResend().emails.send({
+    from: FROM(),
     to: email,
     subject: `Verify your ${appName} email`,
     html: `
