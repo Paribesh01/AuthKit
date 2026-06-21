@@ -53,9 +53,13 @@ export async function listSessions(req: Request, res: Response) {
   });
 
   res.json({
-    sessions: sessions.map(({ refreshToken, ...s }) => ({
-      ...s,
-      isCurrent: currentRT ? refreshToken === currentRT : false,
+    sessions: sessions.map((session) => ({
+      id: session.id,
+      userAgent: session.userAgent,
+      ipAddress: session.ipAddress,
+      createdAt: session.createdAt,
+      expiresAt: session.expiresAt,
+      isCurrent: currentRT ? session.refreshToken === currentRT : false,
     })),
   });
 }
