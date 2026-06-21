@@ -22,18 +22,9 @@ app.use(
   })
 );
 
-// /api — developer dashboard, restricted to our own frontend
-const allowedOrigins = [
-  process.env.CLIENT_URL || "http://localhost:3000",
-  "http://localhost:3000",
-];
 app.use(
   cors({
-    origin: (origin, cb) => {
-      // allow requests with no origin (curl, Postman, server-to-server)
-      cb(null, !origin || allowedOrigins.includes(origin));
-    },
-    credentials: true,
+    origin: "*",
     allowedHeaders: ["Content-Type", "Authorization", "x-refresh-token"],
   })
 );
