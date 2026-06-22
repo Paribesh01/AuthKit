@@ -12,7 +12,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-full bg-gray-50 text-gray-900">
         <AuthProvider
           publishableKey={process.env.NEXT_PUBLIC_PUBLISHABLE_KEY!}
-          baseUrl={process.env.NEXT_PUBLIC_API_URL!}
+          baseUrl={process.env.NEXT_PUBLIC_API_URL ?? "https://clerk-clone-production.up.railway.app"}
         >
           {children}
         </AuthProvider>
