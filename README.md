@@ -1,16 +1,17 @@
-# Clerk Clone — Self-Hosted Auth Service
+# AuthKit — Self-Hosted Auth Service
 
-A production-ready, self-hosted authentication service modelled after [Clerk](https://clerk.com). Provides a developer dashboard for managing applications and users, a public API for end-user auth (`/v1/`), and a TypeScript SDK (`authkit`) that developers drop into their own apps.
+A production-ready, self-hosted authentication service. Provides a developer dashboard for managing applications and users, a public API for end-user auth (`/v1/`), and a TypeScript SDK (`@paribeshn/authkit`) that developers drop into their own apps.
 
 ---
 
 ## Architecture
 
 ```
-clerk/
+authkit/
 ├── backend/      Express API (TypeScript, Prisma 7, Neon PostgreSQL)
 ├── frontend/     Developer dashboard (Next.js, Tailwind CSS)
-└── sdk/          authkit — TypeScript SDK for end-user apps (tsup, ESM + CJS)
+├── sdk/          @paribeshn/authkit — TypeScript SDK for end-user apps (tsup, ESM + CJS)
+└── example/      Example Next.js app using the SDK (clone and run)
 ```
 
 **Three API surfaces:**
@@ -92,7 +93,19 @@ pnpm install
 pnpm dev        # runs on http://localhost:3000
 ```
 
-### 3. SDK (for development)
+### 3. Example app
+
+A fully working Next.js app demonstrating the SDK — sign-in, sign-up, OAuth, session management, and protected routes.
+
+```bash
+cd example
+pnpm install
+pnpm dev   # http://localhost:3001
+```
+
+Set `NEXT_PUBLIC_PUBLISHABLE_KEY` in `example/.env.local` to your app's publishable key from the dashboard. The backend URL defaults to the hosted instance.
+
+### 4. SDK (for development)
 
 ```bash
 cd sdk
@@ -102,13 +115,13 @@ pnpm build      # outputs to sdk/dist/
 
 ---
 
-## SDK — `authkit`
+## SDK — `@paribeshn/authkit`
 
-Install in your application:
+Published on npm: [npmjs.com/package/@paribeshn/authkit](https://www.npmjs.com/package/@paribeshn/authkit)
 
 ```bash
-npm install authkit
-# or: pnpm add authkit
+npm install @paribeshn/authkit
+# or: pnpm add @paribeshn/authkit
 ```
 
 > During development, `pnpm link ../path/to/sdk` from your app lets you use the local build.
@@ -118,7 +131,7 @@ npm install authkit
 **Wrap your app:**
 
 ```tsx
-import { AuthProvider } from "authkit/react";
+import { AuthProvider } from "@paribeshn/authkit/react";
 
 export default function App({ children }) {
   return (
@@ -135,7 +148,7 @@ export default function App({ children }) {
 **Hooks:**
 
 ```tsx
-import { useAuth, useUser } from "authkit/react";
+import { useAuth, useUser } from "@paribeshn/authkit/react";
 
 function Profile() {
   const { user, isLoaded, isSignedIn, signOut } = useAuth();
@@ -155,7 +168,7 @@ function Profile() {
 **Guard components:**
 
 ```tsx
-import { SignedIn, SignedOut, AuthLoaded } from "authkit/react";
+import { SignedIn, SignedOut, AuthLoaded } from "@paribeshn/authkit/react";
 
 <SignedIn>  <Dashboard />  </SignedIn>
 <SignedOut> <LandingPage /></SignedOut>
@@ -164,7 +177,7 @@ import { SignedIn, SignedOut, AuthLoaded } from "authkit/react";
 **Pre-built UI components** (no CSS framework required — inline styles):
 
 ```tsx
-import { SignIn, SignUp, ForgotPassword, ResetPassword } from "authkit/react";
+import { SignIn, SignUp, ForgotPassword, ResetPassword } from "@paribeshn/authkit/react";
 
 // Drop-in sign-in form
 <SignIn
@@ -229,7 +242,7 @@ if (user) router.push("/dashboard");
 
 ```ts
 // middleware.ts (project root)
-import { authkitMiddleware } from "authkit/nextjs";
+import { authkitMiddleware } from "@paribeshn/authkit/nextjs";
 
 export default authkitMiddleware({
   secretKey: process.env.AUTH_SECRET_KEY!,
@@ -246,7 +259,7 @@ export const config = {
 
 ```ts
 // app/api/me/route.ts
-import { getUserFromRequest } from "authkit/nextjs";
+import { getUserFromRequest } from "@paribeshn/authkit/nextjs";
 
 export async function GET(req: Request) {
   const user = await getUserFromRequest(req, {
@@ -262,7 +275,7 @@ export async function GET(req: Request) {
 **Verify tokens in any Node.js backend:**
 
 ```ts
-import { verifyToken, authMiddleware } from "authkit/server";
+import { verifyToken, authMiddleware } from "@paribeshn/authkit/server";
 
 // One-shot verification
 const result = verifyToken(token, { secretKey: process.env.AUTH_SECRET_KEY! });
@@ -276,7 +289,7 @@ app.get("/protected", (req, res) => res.json({ user: req.authUser }));
 **Verify incoming webhooks:**
 
 ```ts
-import { verifyWebhook } from "authkit/server";
+import { verifyWebhook } from "@paribeshn/authkit/server";
 
 // Use express.raw() so the body is a Buffer (required for signature check)
 app.post("/webhooks/auth", express.raw({ type: "application/json" }), (req, res) => {
