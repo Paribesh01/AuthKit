@@ -1,9 +1,11 @@
 {
   "name": "@paribeshn/authkit",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "React SDK for your self-hosted auth service",
   "license": "MIT",
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
