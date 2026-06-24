@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { CodeBlock } from "@/components/syntax-highlight";
 
 const sections = [
   { id: "quick-start", label: "Quick Start" },
@@ -18,26 +19,7 @@ const sections = [
   { id: "metadata", label: "User Metadata" },
 ];
 
-function Code({ children, lang = "tsx" }: { children: string; lang?: string }) {
-  const [copied, setCopied] = useState(false);
-  function copy() {
-    navigator.clipboard.writeText(children.trim());
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
-  }
-  void lang;
-  return (
-    <div className="relative group rounded-xl border border-white/[0.07] bg-white/[0.03] overflow-hidden my-4">
-      <div className="flex items-center justify-between px-4 py-2 border-b border-white/[0.05] bg-white/[0.02]">
-        <span className="text-[10px] text-white/30 font-mono uppercase tracking-widest">{lang}</span>
-        <button onClick={copy} className="text-[10px] text-white/30 hover:text-white/70 transition-colors">
-          {copied ? "Copied!" : "Copy"}
-        </button>
-      </div>
-      <pre className="p-4 text-sm font-mono text-white/70 leading-6 overflow-x-auto whitespace-pre">{children.trim()}</pre>
-    </div>
-  );
-}
+const Code = CodeBlock;
 
 function Section({ id, title, children }: { id: string; title: string; children: React.ReactNode }) {
   return (
