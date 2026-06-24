@@ -4,13 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { getMe, logout, Developer } from "../../lib/auth";
-import { listApplications, createApplication, Application } from "../../lib/dashboard";
+import { listApplications, Application } from "../../lib/dashboard";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
 
 export default function DashboardPage() {
@@ -18,9 +15,6 @@ export default function DashboardPage() {
   const [developer, setDeveloper] = useState<Developer | null>(null);
   const [apps, setApps] = useState<Application[]>([]);
   const [loading, setLoading] = useState(true);
-  const [creating, setCreating] = useState(false);
-  const [newAppName, setNewAppName] = useState("");
-  const [open, setOpen] = useState(false);
   const initialized = useRef(false);
 
   useEffect(() => {
@@ -39,21 +33,6 @@ export default function DashboardPage() {
     }
     load();
   }, [router]);
-
-  async function handleCreate(e: React.FormEvent) {
-    e.preventDefault();
-    if (!newAppName.trim()) return;
-    setCreating(true);
-    try {
-      const app = await createApplication(newAppName.trim());
-      setApps((prev) => [app, ...prev]);
-      setNewAppName("");
-      setOpen(false);
-      router.push(`/dashboard/apps/${app.id}`);
-    } finally {
-      setCreating(false);
-    }
-  }
 
   async function handleLogout() {
     await logout();
@@ -136,40 +115,14 @@ export default function DashboardPage() {
             <h1 className="text-base font-semibold">Applications</h1>
             <p className="text-sm text-white/40 mt-0.5">Each application gets its own keys and user database.</p>
           </div>
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger>
-              <Button size="sm" className="bg-violet-600 hover:bg-violet-500 text-white border-0">
-                <svg className="w-3.5 h-3.5 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-                New application
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="bg-[#111] border-white/10 text-white">
-              <DialogHeader>
-                <DialogTitle>Create application</DialogTitle>
-              </DialogHeader>
-              <form onSubmit={handleCreate} className="space-y-4 pt-2">
-                <div className="space-y-2">
-                  <Label htmlFor="appName" className="text-white/70">Application name</Label>
-                  <Input
-                    id="appName"
-                    autoFocus
-                    placeholder="My App"
-                    value={newAppName}
-                    onChange={(e) => setNewAppName(e.target.value)}
-                    className="bg-white/5 border-white/10 text-white placeholder:text-white/20"
-                  />
-                </div>
-                <div className="flex gap-2 justify-end">
-                  <Button type="button" variant="ghost" onClick={() => setOpen(false)} className="text-white/50">Cancel</Button>
-                  <Button type="submit" disabled={creating} className="bg-violet-600 hover:bg-violet-500 text-white border-0">
-                    {creating ? "Creating..." : "Create"}
-                  </Button>
-                </div>
-              </form>
-            </DialogContent>
-          </Dialog>
+          <Link href="/dashboard/apps/new">
+            <Button size="sm" className="bg-violet-600 hover:bg-violet-500 text-white border-0">
+              <svg className="w-3.5 h-3.5 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              New application
+            </Button>
+          </Link>
         </div>
 
         <div className="px-8 py-8">
@@ -182,9 +135,11 @@ export default function DashboardPage() {
               </div>
               <p className="font-medium mb-1">No applications yet</p>
               <p className="text-sm text-white/40 mb-5">Create your first app to get started.</p>
-              <Button onClick={() => setOpen(true)} size="sm" className="bg-violet-600 hover:bg-violet-500 text-white border-0">
-                Create application
-              </Button>
+              <Link href="/dashboard/apps/new">
+                <Button size="sm" className="bg-violet-600 hover:bg-violet-500 text-white border-0">
+                  Create application
+                </Button>
+              </Link>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
