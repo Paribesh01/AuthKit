@@ -5,6 +5,7 @@ import { signAppAccessToken, signAppRefreshToken, verifyAppToken } from "../../l
 import { generateSecureToken, tokenExpiresAt } from "../../lib/tokens";
 import { sendAppUserPasswordReset, sendAppUserEmailVerification } from "../../lib/email";
 import { fireWebhook } from "../../lib/webhook";
+import { logEvent } from "../../lib/logEvent";
 import type { AppContext } from "../../middleware/apiKey.middleware";
 
 const REFRESH_COOKIE = "app_refresh_token";
@@ -49,6 +50,29 @@ export async function signUp(req: Request, res: Response) {
   if (!email && !username) {
     res.status(422).json({ error: "Email or username is required" });
     return;
+  }
+
+  // Fetch app settings for validation
+  const settings = await prisma.appSettings.findUnique({ where: { applicationId: app.id } });
+
+  if (settings && !settings.allowSignups) {
+    res.status(403).json({ error: "Signups are currently disabled for this application." });
+    return;
+  }
+
+  if (password && settings) {
+    if (password.length < settings.passwordMinLength) {
+      res.status(422).json({ error: `Password must be at least ${settings.passwordMinLength} characters.` });
+      return;
+    }
+    if (settings.requireUppercase && !/[A-Z]/.test(password)) {
+      res.status(422).json({ error: "Password must contain at least one uppercase letter." });
+      return;
+    }
+    if (settings.requireNumber && !/[0-9]/.test(password)) {
+      res.status(422).json({ error: "Password must contain at least one number." });
+      return;
+    }
   }
 
   const existing = await prisma.appUser.findFirst({
@@ -112,6 +136,7 @@ export async function signUp(req: Request, res: Response) {
       firstName: user.firstName, lastName: user.lastName,
     });
   }
+  logEvent({ applicationId: app.id, eventType: "user.created", actorId: user.id, actorEmail: user.email, ipAddress: req.ip, userAgent: req.headers["user-agent"] as string });
 
   res.cookie(REFRESH_COOKIE, refreshToken, cookieOptions());
   res.status(201).json({
@@ -156,6 +181,11 @@ export async function signIn(req: Request, res: Response) {
     return;
   }
 
+  // Fetch settings for session duration + max sessions enforcement
+  const settings = await prisma.appSettings.findUnique({ where: { applicationId: app.id } });
+  const sessionHours = settings?.sessionDurationHours ?? 168;
+  const maxSessions = settings?.maxSessionsPerUser ?? 5;
+
   const payload = userPayload(user);
   const accessToken = signAppAccessToken(payload, app.secretKey);
   const refreshToken = signAppRefreshToken(user.id, app.id, app.secretKey);
@@ -166,9 +196,20 @@ export async function signIn(req: Request, res: Response) {
       refreshToken,
       userAgent: req.headers["user-agent"],
       ipAddress: req.ip,
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      expiresAt: new Date(Date.now() + sessionHours * 60 * 60 * 1000),
     },
   });
+
+  // Prune oldest sessions if over limit
+  const allSessions = await prisma.appSession.findMany({
+    where: { appUserId: user.id },
+    orderBy: { createdAt: "asc" },
+    select: { id: true },
+  });
+  if (allSessions.length > maxSessions) {
+    const toDelete = allSessions.slice(0, allSessions.length - maxSessions).map(s => s.id);
+    await prisma.appSession.deleteMany({ where: { id: { in: toDelete } } });
+  }
 
   await prisma.appUser.update({
     where: { id: user.id },
@@ -180,6 +221,7 @@ export async function signIn(req: Request, res: Response) {
       id: user.id, email: user.email, username: user.username,
     });
   }
+  logEvent({ applicationId: app.id, eventType: "user.signed_in", actorId: user.id, actorEmail: user.email, ipAddress: req.ip, userAgent: req.headers["user-agent"] as string });
 
   res.cookie(REFRESH_COOKIE, refreshToken, cookieOptions());
   res.json({

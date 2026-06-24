@@ -85,16 +85,109 @@ export async function upsertOAuthProvider(
   return res.data.provider;
 }
 
+// Stats & Events
+export interface AppStats {
+  totalUsers: number;
+  activeSessions: number;
+  eventsToday: number;
+  signInsLast30Days: number;
+  newUsersLast30Days: number;
+}
+
+export interface AppEvent {
+  id: string;
+  eventType: string;
+  actorId: string | null;
+  actorEmail: string | null;
+  ipAddress: string | null;
+  userAgent: string | null;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+}
+
+export async function getAppStats(appId: string): Promise<AppStats> {
+  const res = await api.get(`/api/dashboard/applications/${appId}/stats`);
+  return res.data;
+}
+
+export async function listEvents(
+  appId: string,
+  page = 1,
+  eventType?: string
+): Promise<{ events: AppEvent[]; total: number }> {
+  const params = new URLSearchParams({ page: String(page) });
+  if (eventType) params.set("eventType", eventType);
+  const res = await api.get(`/api/dashboard/applications/${appId}/events?${params}`);
+  return res.data;
+}
+
 // Users
+export async function createUser(
+  appId: string,
+  data: { email?: string; password?: string; firstName?: string; lastName?: string; username?: string }
+): Promise<AppUser> {
+  const res = await api.post(`/api/dashboard/applications/${appId}/users`, data);
+  return res.data.user;
+}
+
 export async function listUsers(
   appId: string,
   page = 1,
-  limit = 20
+  limit = 20,
+  search?: string
 ): Promise<{ users: AppUser[]; total: number }> {
-  const res = await api.get(
-    `/api/dashboard/applications/${appId}/users?page=${page}&limit=${limit}`
-  );
+  const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+  if (search) params.set("search", search);
+  const res = await api.get(`/api/dashboard/applications/${appId}/users?${params}`);
   return res.data;
+}
+
+export interface AppSession {
+  id: string;
+  userAgent: string | null;
+  ipAddress: string | null;
+  createdAt: string;
+  expiresAt: string;
+}
+
+export interface AppSettings {
+  id: string;
+  passwordMinLength: number;
+  requireUppercase: boolean;
+  requireNumber: boolean;
+  requireEmailVerification: boolean;
+  allowSignups: boolean;
+  sessionDurationHours: number;
+  maxSessionsPerUser: number;
+}
+
+export interface ChartPoint {
+  date: string;
+  count: number;
+}
+
+export async function getActivityChart(appId: string): Promise<ChartPoint[]> {
+  const res = await api.get(`/api/dashboard/applications/${appId}/chart`);
+  return res.data.chart;
+}
+
+export async function getAppSettingsData(appId: string): Promise<AppSettings> {
+  const res = await api.get(`/api/dashboard/applications/${appId}/settings`);
+  return res.data.settings;
+}
+
+export async function updateAppSettings(appId: string, data: Partial<AppSettings>): Promise<AppSettings> {
+  const res = await api.patch(`/api/dashboard/applications/${appId}/settings`, data);
+  return res.data.settings;
+}
+
+export async function listUserSessions(appId: string, userId: string): Promise<AppSession[]> {
+  const res = await api.get(`/api/dashboard/applications/${appId}/users/${userId}/sessions`);
+  return res.data.sessions;
+}
+
+export async function revokeOneSession(appId: string, sessionId: string): Promise<void> {
+  await api.delete(`/api/dashboard/applications/${appId}/sessions/${sessionId}`);
 }
 
 export async function banUser(appId: string, userId: string) {

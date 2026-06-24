@@ -2,6 +2,8 @@ import { Router } from "express";
 import { body } from "express-validator";
 import { validate } from "../middleware/validate.middleware";
 import { requirePublishableKey, requireSecretKey } from "../middleware/apiKey.middleware";
+import { requireAppUserToken } from "../middleware/appUserAuth.middleware";
+import { authLimiter, otpLimiter } from "../middleware/rateLimiter";
 import { initiateOAuth, oauthCallback } from "../controllers/v1/oauth.controller";
 import {
   signUp,
@@ -17,6 +19,7 @@ import {
 } from "../controllers/v1/auth.controller";
 import { updateUserMetadata, getUser as getAppUser } from "../controllers/v1/users.controller";
 import { listSessions, revokeSession, revokeAllSessions } from "../controllers/v1/sessions.controller";
+import { setupMfa, verifyMfaSetup, disableMfa, getMfaStatus, verifyMfaCode } from "../controllers/v1/mfa.controller";
 
 const router = Router();
 
@@ -24,6 +27,7 @@ const router = Router();
 // These are called from the developer's frontend
 router.post(
   "/sign-up",
+  authLimiter,
   requirePublishableKey,
   [
     body("email").optional().isEmail().normalizeEmail(),
@@ -38,6 +42,7 @@ router.post(
 
 router.post(
   "/sign-in",
+  authLimiter,
   requirePublishableKey,
   [
     body("email").optional().isEmail().normalizeEmail(),
@@ -60,6 +65,7 @@ router.get("/verify-email/:token", verifyEmail);
 // Password reset (called from the developer's app)
 router.post(
   "/forgot-password",
+  authLimiter,
   requirePublishableKey,
   [body("email").isEmail().normalizeEmail(), body("redirectUrl").optional().isURL()],
   validate,
@@ -106,6 +112,35 @@ router.patch(
   ],
   validate,
   updateUserMetadata
+);
+
+// MFA — authenticated by user access token
+router.get("/me/mfa", requirePublishableKey, requireAppUserToken, getMfaStatus);
+router.post("/me/mfa/setup", requirePublishableKey, requireAppUserToken, setupMfa);
+router.post(
+  "/me/mfa/verify-setup",
+  requirePublishableKey,
+  requireAppUserToken,
+  [body("code").notEmpty().isLength({ min: 6, max: 6 })],
+  validate,
+  verifyMfaSetup
+);
+router.post(
+  "/me/mfa/disable",
+  requirePublishableKey,
+  requireAppUserToken,
+  [body("code").notEmpty()],
+  validate,
+  disableMfa
+);
+// Called during sign-in to complete MFA challenge (no user token yet)
+router.post(
+  "/mfa/verify",
+  requirePublishableKey,
+  authLimiter,
+  [body("userId").notEmpty(), body("code").notEmpty()],
+  validate,
+  verifyMfaCode
 );
 
 export default router;

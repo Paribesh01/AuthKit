@@ -82,8 +82,45 @@ model Application {
   developer      Developer       @relation(fields: [developerId], references: [id], onDelete: Cascade)
   users          AppUser[]
   oauthProviders OAuthProvider[]
+  events         AppEvent[]
+  settings       AppSettings?
 
   @@map("applications")
+}
+
+model AppEvent {
+  id            String   @id @default(cuid())
+  applicationId String
+  eventType     String
+  actorId       String?
+  actorEmail    String?
+  ipAddress     String?
+  userAgent     String?
+  metadata      Json     @default("{}")
+  createdAt     DateTime @default(now())
+
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId, createdAt(sort: Desc)])
+  @@map("app_events")
+}
+
+// ─── Application settings (one row per app) ─────────────────────────────────
+
+model AppSettings {
+  id                     String  @id @default(cuid())
+  applicationId          String  @unique
+  passwordMinLength      Int     @default(8)
+  requireUppercase       Boolean @default(false)
+  requireNumber          Boolean @default(false)
+  requireEmailVerification Boolean @default(false)
+  allowSignups           Boolean @default(true)
+  sessionDurationHours   Int     @default(168) // 7 days
+  maxSessionsPerUser     Int     @default(5)
+
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@map("app_settings")
 }
 
 // ─── AppUser (an end-user inside a developer's application) ─────────────────
@@ -111,6 +148,8 @@ model AppUser {
   emailVerifications AppEmailVerification[]
   passwordResets     AppPasswordReset[]
   oauthAccounts      OAuthAccount[]
+  mfa                AppUserMfa?
+  emailOtps          AppEmailOtp[]
 
   @@unique([applicationId, email])
   @@unique([applicationId, username])
@@ -172,6 +211,35 @@ model OAuthProvider {
 
   @@unique([applicationId, provider])
   @@map("oauth_providers")
+}
+
+model AppUserMfa {
+  id         String   @id @default(cuid())
+  appUserId  String   @unique
+  secret     String   // base32 TOTP secret (store encrypted in prod)
+  enabled    Boolean  @default(false)
+  backupCodes String[] // hashed backup codes
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  appUser AppUser @relation(fields: [appUserId], references: [id], onDelete: Cascade)
+
+  @@map("app_user_mfa")
+}
+
+model AppEmailOtp {
+  id        String   @id @default(cuid())
+  appUserId String
+  code      String   // 6-digit hashed OTP
+  purpose   String   // "email_verify" | "signin"
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  appUser AppUser @relation(fields: [appUserId], references: [id], onDelete: Cascade)
+
+  @@index([appUserId, purpose])
+  @@map("app_email_otps")
 }
 
 model OAuthAccount {

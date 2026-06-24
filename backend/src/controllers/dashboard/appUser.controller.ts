@@ -1,6 +1,8 @@
 import { Request, Response } from "express";
 import { prisma } from "../../db/prisma";
 import { fireWebhook } from "../../lib/webhook";
+import { logEvent } from "../../lib/logEvent";
+import { hashPassword } from "../../lib/password";
 
 async function getOwnedApp(developerId: string, appId: string) {
   return prisma.application.findFirst({
@@ -19,10 +21,23 @@ export async function listUsers(req: Request, res: Response) {
   const page = Math.max(1, parseInt(req.query.page as string) || 1);
   const limit = Math.min(100, parseInt(req.query.limit as string) || 20);
   const skip = (page - 1) * limit;
+  const search = req.query.search as string | undefined;
+
+  const where = {
+    applicationId: appId,
+    ...(search && {
+      OR: [
+        { email: { contains: search, mode: "insensitive" as const } },
+        { username: { contains: search, mode: "insensitive" as const } },
+        { firstName: { contains: search, mode: "insensitive" as const } },
+        { lastName: { contains: search, mode: "insensitive" as const } },
+      ],
+    }),
+  };
 
   const [users, total] = await Promise.all([
     prisma.appUser.findMany({
-      where: { applicationId: appId },
+      where,
       select: {
         id: true,
         email: true,
@@ -39,7 +54,7 @@ export async function listUsers(req: Request, res: Response) {
       skip,
       take: limit,
     }),
-    prisma.appUser.count({ where: { applicationId: appId } }),
+    prisma.appUser.count({ where }),
   ]);
 
   res.json({ users, total, page, limit });
@@ -110,6 +125,7 @@ export async function banUser(req: Request, res: Response) {
   if (app.webhookUrl && app.webhookSecret) {
     fireWebhook(app.webhookUrl, app.webhookSecret, "user.banned", { id: user.id, email: user.email });
   }
+  logEvent({ applicationId: appId, eventType: "user.banned", actorId: user.id, actorEmail: user.email });
 
   res.json({ user: updated });
 }
@@ -139,6 +155,7 @@ export async function unbanUser(req: Request, res: Response) {
   if (app.webhookUrl && app.webhookSecret) {
     fireWebhook(app.webhookUrl, app.webhookSecret, "user.unbanned", { id: user.id, email: user.email });
   }
+  logEvent({ applicationId: appId, eventType: "user.unbanned", actorId: user.id, actorEmail: user.email });
 
   res.json({ user: updated });
 }
@@ -164,8 +181,40 @@ export async function deleteUser(req: Request, res: Response) {
   if (app.webhookUrl && app.webhookSecret) {
     fireWebhook(app.webhookUrl, app.webhookSecret, "user.deleted", { id: user.id, email: user.email });
   }
+  logEvent({ applicationId: appId, eventType: "user.deleted", actorEmail: user.email });
 
   res.json({ message: "User deleted" });
+}
+
+export async function createUser(req: Request, res: Response) {
+  const appId = req.params.appId as string;
+  const app = await getOwnedApp(req.user!.userId, appId);
+  if (!app) { res.status(404).json({ error: "Application not found" }); return; }
+
+  const { email, password, firstName, lastName, username } = req.body;
+  if (!email && !username) { res.status(422).json({ error: "Email or username is required" }); return; }
+
+  const existing = await prisma.appUser.findFirst({
+    where: { applicationId: appId, ...(email ? { email } : { username }) },
+  });
+  if (existing) { res.status(409).json({ error: "User already exists" }); return; }
+
+  const user = await prisma.appUser.create({
+    data: {
+      applicationId: appId,
+      email: email ?? null,
+      username: username ?? null,
+      firstName: firstName ?? null,
+      lastName: lastName ?? null,
+      passwordHash: password ? await hashPassword(password) : null,
+      emailVerified: true, // admin-created users are pre-verified
+    },
+    select: { id: true, email: true, username: true, firstName: true, lastName: true, emailVerified: true, banned: true, createdAt: true, lastSignInAt: true },
+  });
+
+  logEvent({ applicationId: appId, eventType: "user.created", actorId: user.id, actorEmail: user.email, metadata: { source: "dashboard" } });
+
+  res.status(201).json({ user });
 }
 
 export async function updateUserMetadata(req: Request, res: Response) {
