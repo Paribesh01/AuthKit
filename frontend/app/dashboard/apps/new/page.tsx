@@ -273,14 +273,14 @@ export default function NewAppPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#080808] text-white flex flex-col">
+    <div className="h-screen bg-[#080808] text-white flex flex-col overflow-hidden">
       {/* Glow */}
       <div className="pointer-events-none fixed inset-0 z-0">
         <div className="absolute top-[-15%] left-[40%] w-[700px] h-[500px] rounded-full bg-violet-600/8 blur-[140px]" />
       </div>
 
       {/* Header */}
-      <header className="relative z-10 border-b border-white/[0.06] px-6 py-4 flex items-center gap-4 bg-[#080808]/80 backdrop-blur-sm">
+      <header className="relative z-10 shrink-0 border-b border-white/[0.06] px-6 py-4 flex items-center gap-4 bg-[#080808]/80 backdrop-blur-sm">
         <Link href="/dashboard" className="flex items-center gap-1.5 text-sm text-white/40 hover:text-white transition-colors">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -292,7 +292,7 @@ export default function NewAppPage() {
       </header>
 
       {/* Body */}
-      <div className="relative z-10 flex flex-1">
+      <div className="relative z-10 flex flex-1 min-h-0">
         {/* Left panel */}
         <div className="w-[400px] shrink-0 border-r border-white/[0.06] overflow-y-auto p-8 flex flex-col gap-6">
 
@@ -400,7 +400,7 @@ export default function NewAppPage() {
         </div>
 
         {/* Right — live preview */}
-        <div className="flex-1 flex flex-col items-center justify-center p-12 gap-6">
+        <div className="flex-1 flex flex-col items-center justify-center p-12 gap-6 overflow-hidden">
           <div className="text-center mb-2">
             <p className="text-xs text-white/25 uppercase tracking-widest font-medium">Live preview</p>
           </div>
