@@ -24,34 +24,15 @@ app.use(helmet({
 app.disable("x-powered-by");
 
 // ── CORS ──────────────────────────────────────────────────────────────────────
-// /v1 — called by developers' frontend apps from any origin
-app.use(
-  "/v1",
-  cors({
-    origin: "*",
-    allowedHeaders: ["Content-Type", "Authorization", "x-publishable-key", "x-refresh-token"],
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  })
-);
+// Allow all origins — endpoints are protected by JWT auth, not CORS.
+// CORS is a browser hint, not a real security boundary for APIs.
+const corsOptions = {
+  origin: "*",
+  allowedHeaders: ["Content-Type", "Authorization", "x-publishable-key", "x-refresh-token"],
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+};
 
-// Dashboard & auth — restrict to same origin in production
-const allowedDashboardOrigins = process.env.ALLOWED_DASHBOARD_ORIGINS
-  ? process.env.ALLOWED_DASHBOARD_ORIGINS.split(",").map(o => o.trim())
-  : ["http://localhost:3000", "http://localhost:3001"];
-
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      if (!origin) return callback(null, true); // allow non-browser requests (curl, server-to-server)
-      if (process.env.NODE_ENV !== "production") return callback(null, true);
-      if (allowedDashboardOrigins.includes(origin)) return callback(null, true);
-      callback(new Error("Not allowed by CORS"));
-    },
-    credentials: true,
-    allowedHeaders: ["Content-Type", "Authorization", "x-refresh-token"],
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  })
-);
+app.use(cors(corsOptions));
 
 app.use(express.json({ limit: "512kb" })); // Limit request body size
 app.use(cookieParser());
