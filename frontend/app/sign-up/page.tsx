@@ -33,11 +33,14 @@ export default function SignUpPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background px-4">
-      <div className="w-full max-w-md space-y-6">
+    <div className="min-h-screen flex items-center justify-center bg-[#080808] px-4">
+      <div className="pointer-events-none fixed inset-0 z-0">
+        <div className="absolute top-[-20%] left-[50%] -translate-x-1/2 w-[600px] h-[400px] rounded-full bg-violet-600/8 blur-[120px]" />
+      </div>
+      <div className="relative z-10 w-full max-w-md space-y-6">
         <div className="text-center">
           <span className="text-2xl font-bold tracking-tight">
-            Auth<span className="text-primary">Kit</span>
+            Auth<span className="text-violet-400">Kit</span>
           </span>
         </div>
 

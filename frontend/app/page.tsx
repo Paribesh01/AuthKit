@@ -73,6 +73,9 @@ export default function LandingPage() {
             Auth<span className="text-violet-400">Kit</span>
           </span>
           <div className="flex items-center gap-2">
+            <Link href="/docs" className="text-sm text-white/50 hover:text-white px-3 py-1.5 rounded-lg hover:bg-white/5 transition-all">
+              Docs
+            </Link>
             <Link href="/sign-in" className="text-sm text-white/50 hover:text-white px-3 py-1.5 rounded-lg hover:bg-white/5 transition-all">
               Sign in
             </Link>
@@ -231,6 +234,7 @@ export default function LandingPage() {
             Auth<span className="text-violet-400">Kit</span> — self-hosted auth
           </span>
           <div className="flex gap-6">
+            <Link href="/docs" className="hover:text-white/60 transition-colors">Docs</Link>
             <Link href="/sign-in" className="hover:text-white/60 transition-colors">Sign in</Link>
             <Link href="/sign-up" className="hover:text-white/60 transition-colors">Sign up</Link>
           </div>
