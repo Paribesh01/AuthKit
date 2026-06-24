@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   getApplication, updateApplication, rotateSecretKey, rotateWebhookSecret,
-  deleteApplication, listOAuthProviders, upsertOAuthProvider, deleteOAuthProvider,
+  deleteApplication, listOAuthProviders, upsertOAuthProvider,
   Application, OAuthProvider,
 } from "../../../../lib/dashboard";
 
@@ -46,10 +46,7 @@ export default function AppDetailPage() {
   const [rotating, setRotating] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [oauthProviders, setOauthProviders] = useState<OAuthProvider[]>([]);
-  const [showOAuthForm, setShowOAuthForm] = useState(false);
-  const [oauthForm, setOauthForm] = useState({ provider: "google", clientId: "", clientSecret: "" });
-  const [savingOAuth, setSavingOAuth] = useState(false);
-  const [removingProvider, setRemovingProvider] = useState<string | null>(null);
+  const [togglingOAuth, setTogglingOAuth] = useState<string | null>(null);
   const initialized = useRef(false);
 
   useEffect(() => {
@@ -87,19 +84,12 @@ export default function AppDetailPage() {
     try { const s = await rotateWebhookSecret(appId); setApp(p => p ? { ...p, webhookSecret: s } : p); }
     finally { setRotatingWebhook(false); }
   }
-  async function handleSaveOAuth(e: React.FormEvent) {
-    e.preventDefault(); setSavingOAuth(true);
+  async function handleToggleOAuth(provider: string, enabled: boolean) {
+    setTogglingOAuth(provider);
     try {
-      const saved = await upsertOAuthProvider(appId, oauthForm);
-      setOauthProviders(prev => { const i = prev.findIndex(p => p.provider === saved.provider); if (i >= 0) { const n = [...prev]; n[i] = saved; return n; } return [...prev, saved]; });
-      setShowOAuthForm(false); setOauthForm({ provider: "google", clientId: "", clientSecret: "" });
-    } finally { setSavingOAuth(false); }
-  }
-  async function handleRemoveOAuth(provider: string) {
-    if (!confirm(`Remove ${provider} OAuth?`)) return;
-    setRemovingProvider(provider);
-    try { await deleteOAuthProvider(appId, provider); setOauthProviders(p => p.filter(x => x.provider !== provider)); }
-    finally { setRemovingProvider(null); }
+      const saved = await upsertOAuthProvider(appId, { provider, enabled });
+      setOauthProviders(prev => prev.map(p => p.provider === saved.provider ? { ...p, enabled: saved.enabled } : p));
+    } finally { setTogglingOAuth(null); }
   }
   async function handleDelete() {
     if (!confirm(`Delete "${app?.name}"? This permanently deletes all users and sessions.`)) return;
@@ -120,7 +110,6 @@ export default function AppDetailPage() {
   const inputCls = "w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/30";
   const btnPrimary = "bg-violet-600 hover:bg-violet-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-40";
   const btnGhost = "px-4 py-2 rounded-lg text-sm text-white/40 hover:text-white hover:bg-white/5 transition-all";
-  const configuredProviders = new Set(oauthProviders.map(p => p.provider));
 
   return (
     <div className="min-h-screen bg-[#080808] text-white">
@@ -205,73 +194,45 @@ export default function AppDetailPage() {
 
         {/* OAuth */}
         <section className="border border-white/[0.07] rounded-2xl p-6 bg-white/[0.02]">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-sm font-semibold">OAuth Providers</h2>
-              <p className="text-xs text-white/40 mt-0.5">Allow users to sign in with Google or GitHub.</p>
-            </div>
-            {!showOAuthForm && (
-              <button onClick={() => setShowOAuthForm(true)} className="text-xs text-violet-400 hover:text-violet-300 transition-colors">+ Add provider</button>
-            )}
+          <div className="mb-5">
+            <h2 className="text-sm font-semibold">Social Login</h2>
+            <p className="text-xs text-white/40 mt-0.5">Toggle social providers — powered by AuthKit's own OAuth apps, no setup needed.</p>
           </div>
-          {oauthProviders.length > 0 && (
-            <div className="space-y-2 mb-4">
-              {oauthProviders.map(p => (
-                <div key={p.provider} className="flex items-center justify-between px-4 py-3 border border-white/[0.07] rounded-xl bg-white/[0.02]">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-xs font-bold text-white/60">
-                      {p.provider === "google" ? "G" : "GH"}
+          <div className="space-y-2">
+            {oauthProviders.map(p => (
+              <div key={p.provider} className="flex items-center justify-between px-4 py-3 rounded-xl border border-white/[0.06] bg-white/[0.015] hover:bg-white/[0.03] transition-colors">
+                <div className="flex items-center gap-3">
+                  {p.provider === "google" ? (
+                    <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center">
+                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
+                        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+                        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                      </svg>
                     </div>
-                    <div>
-                      <p className="text-sm font-medium capitalize">{p.provider}</p>
-                      <p className="text-[11px] text-white/30 font-mono">{p.clientId}</p>
+                  ) : (
+                    <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center">
+                      <svg className="w-4 h-4 text-white/70" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
+                      </svg>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${p.enabled ? "bg-green-500/10 text-green-400 border border-green-500/20" : "bg-white/5 text-white/30 border border-white/10"}`}>
-                      {p.enabled ? "Enabled" : "Disabled"}
-                    </span>
-                    <button onClick={() => { setOauthForm({ provider: p.provider, clientId: p.clientId, clientSecret: "" }); setShowOAuthForm(true); }} className="text-xs text-violet-400 hover:text-violet-300 transition-colors">Edit</button>
-                    <button onClick={() => handleRemoveOAuth(p.provider)} disabled={removingProvider === p.provider} className="text-xs text-red-400 hover:text-red-300 transition-colors disabled:opacity-40">Remove</button>
+                  )}
+                  <div>
+                    <p className="text-sm font-medium capitalize">{p.provider}</p>
+                    <p className="text-[11px] text-white/30">Managed by AuthKit</p>
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
-          {showOAuthForm && (
-            <form onSubmit={handleSaveOAuth} className="border border-white/[0.07] rounded-xl p-4 space-y-3 bg-white/[0.02]">
-              <div>
-                <label className="block text-xs text-white/50 mb-1">Provider</label>
-                <select value={oauthForm.provider} onChange={e => setOauthForm(f => ({ ...f, provider: e.target.value }))} className={inputCls}>
-                  <option value="google">Google</option>
-                  <option value="github">GitHub</option>
-                </select>
+                <button
+                  onClick={() => handleToggleOAuth(p.provider, !p.enabled)}
+                  disabled={togglingOAuth === p.provider}
+                  className={`relative w-10 h-6 rounded-full transition-colors duration-200 disabled:opacity-40 ${p.enabled ? "bg-violet-600" : "bg-white/10"}`}
+                >
+                  <span className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-200 ${p.enabled ? "translate-x-4" : "translate-x-0"}`} />
+                </button>
               </div>
-              <div>
-                <label className="block text-xs text-white/50 mb-1">Client ID</label>
-                <input required value={oauthForm.clientId} onChange={e => setOauthForm(f => ({ ...f, clientId: e.target.value }))} placeholder="Your OAuth Client ID" className={inputCls} />
-              </div>
-              <div>
-                <label className="block text-xs text-white/50 mb-1">
-                  Client Secret {configuredProviders.has(oauthForm.provider as "google" | "github") && <span className="text-white/25">(leave blank to keep existing)</span>}
-                </label>
-                <input type="password" required={!configuredProviders.has(oauthForm.provider as "google" | "github")} value={oauthForm.clientSecret} onChange={e => setOauthForm(f => ({ ...f, clientSecret: e.target.value }))} placeholder="Your OAuth Client Secret" className={inputCls} />
-              </div>
-              <div className="bg-violet-500/5 border border-violet-500/20 rounded-lg p-3">
-                <p className="text-[10px] text-violet-300/70 uppercase tracking-widest font-medium mb-1">Callback URL to register</p>
-                <code className="text-xs text-violet-300 font-mono">
-                  {process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000"}/v1/oauth/{oauthForm.provider}/callback
-                </code>
-              </div>
-              <div className="flex gap-2 pt-1">
-                <button type="submit" disabled={savingOAuth} className={btnPrimary}>{savingOAuth ? "Saving..." : "Save provider"}</button>
-                <button type="button" onClick={() => { setShowOAuthForm(false); setOauthForm({ provider: "google", clientId: "", clientSecret: "" }); }} className={btnGhost}>Cancel</button>
-              </div>
-            </form>
-          )}
-          {oauthProviders.length === 0 && !showOAuthForm && (
-            <p className="text-sm text-white/25">No OAuth providers configured.</p>
-          )}
+            ))}
+          </div>
         </section>
 
         {/* Users */}

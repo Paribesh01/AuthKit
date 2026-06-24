@@ -171,11 +171,31 @@ function SignInPreview({ config }: { config: Config }) {
   );
 }
 
+// ── Theme mockup (simple schematic) ──────────────────────────────────────────
+
+function ThemeMockup({ theme }: { theme: Theme }) {
+  const s = {
+    minimal: { bg: "bg-[#0f0f0f]", border: "border-white/10", r: "rounded-lg", btn: "bg-white", input: "bg-white/5 border-white/10" },
+    card:    { bg: "bg-[#1c1c1c]", border: "border-white/10", r: "rounded-2xl", btn: "bg-white", input: "bg-white/5 border-white/10" },
+    glass:   { bg: "bg-white/5 backdrop-blur",  border: "border-white/15", r: "rounded-2xl", btn: "bg-violet-600", input: "bg-white/8 border-white/15" },
+  }[theme];
+
+  return (
+    <div className={`${s.bg} ${s.border} ${s.r} border w-full p-3 flex flex-col gap-1.5`}>
+      <div className="w-5 h-5 rounded-lg bg-violet-500/30 mx-auto mb-1" />
+      <div className="w-3/4 h-1.5 rounded-full bg-white/20 mx-auto" />
+      <div className="w-1/2 h-1 rounded-full bg-white/10 mx-auto mb-1" />
+      <div className={`${s.input} ${s.r} border h-4 w-full`} />
+      <div className={`${s.input} ${s.r} border h-4 w-full`} />
+      <div className={`${s.btn} ${s.r} h-5 w-full mt-0.5`} />
+    </div>
+  );
+}
+
 // ── Theme selector ────────────────────────────────────────────────────────────
 
-function ThemeOption({ id, label, active, onClick, preview }: {
+function ThemeOption({ id, label, active, onClick }: {
   id: Theme; label: string; active: boolean; onClick: () => void;
-  preview: React.ReactNode;
 }) {
   return (
     <button
@@ -190,10 +210,8 @@ function ThemeOption({ id, label, active, onClick, preview }: {
           </svg>
         </span>
       )}
-      <div className="mb-2 pointer-events-none transform scale-[0.45] origin-top-left w-[222%]">
-        {preview}
-      </div>
-      <p className={`text-xs font-medium mt-1 ${active ? "text-violet-300" : "text-white/50"}`}>{label}</p>
+      <ThemeMockup theme={id} />
+      <p className={`text-xs font-medium mt-2 ${active ? "text-violet-300" : "text-white/50"}`}>{label}</p>
     </button>
   );
 }
@@ -253,12 +271,6 @@ export default function NewAppPage() {
       setCreating(false);
     }
   }
-
-  const themePreviewConfig = (theme: Theme): Config => ({
-    ...config,
-    name: config.name.trim() || "My App",
-    theme,
-  });
 
   return (
     <div className="min-h-screen bg-[#080808] text-white flex flex-col">
@@ -357,7 +369,6 @@ export default function NewAppPage() {
                   label={t.charAt(0).toUpperCase() + t.slice(1)}
                   active={config.theme === t}
                   onClick={() => set("theme", t)}
-                  preview={<SignInPreview config={themePreviewConfig(t)} />}
                 />
               ))}
             </div>

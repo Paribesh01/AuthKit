@@ -28,11 +28,9 @@ export interface AppUser {
 }
 
 export interface OAuthProvider {
-  id: string;
   provider: "google" | "github";
-  clientId: string;
   enabled: boolean;
-  createdAt: string;
+  id: string | null;
 }
 
 // Applications
@@ -81,14 +79,10 @@ export async function listOAuthProviders(appId: string): Promise<OAuthProvider[]
 
 export async function upsertOAuthProvider(
   appId: string,
-  data: { provider: string; clientId: string; clientSecret?: string; enabled?: boolean }
+  data: { provider: string; enabled: boolean }
 ): Promise<OAuthProvider> {
   const res = await api.post(`/api/dashboard/applications/${appId}/oauth-providers`, data);
   return res.data.provider;
-}
-
-export async function deleteOAuthProvider(appId: string, provider: string): Promise<void> {
-  await api.delete(`/api/dashboard/applications/${appId}/oauth-providers/${provider}`);
 }
 
 // Users

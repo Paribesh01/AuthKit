@@ -6,6 +6,17 @@ import { fireWebhook } from "../../lib/webhook";
 
 const API_URL = process.env.API_URL || "http://localhost:4000";
 
+const PLATFORM_CREDENTIALS: Record<string, { clientId: string; clientSecret: string }> = {
+  google: {
+    clientId: process.env.GOOGLE_CLIENT_ID!,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+  },
+  github: {
+    clientId: process.env.GITHUB_CLIENT_ID!,
+    clientSecret: process.env.GITHUB_CLIENT_SECRET!,
+  },
+};
+
 const PROVIDERS = {
   google: {
     authUrl: "https://accounts.google.com/o/oauth2/v2/auth",
@@ -58,8 +69,14 @@ export async function initiateOAuth(req: Request, res: Response) {
   const oauthProvider = await prisma.oAuthProvider.findUnique({
     where: { applicationId_provider: { applicationId: app.id, provider } },
   });
-  if (!oauthProvider || !oauthProvider.enabled) {
-    res.status(400).json({ error: `${provider} OAuth is not configured for this application` });
+  if (!oauthProvider?.enabled) {
+    res.status(400).json({ error: `${provider} sign-in is not enabled for this application` });
+    return;
+  }
+
+  const creds = PLATFORM_CREDENTIALS[provider];
+  if (!creds?.clientId) {
+    res.status(503).json({ error: `${provider} OAuth is not configured on this AuthKit instance` });
     return;
   }
 
@@ -70,7 +87,7 @@ export async function initiateOAuth(req: Request, res: Response) {
   );
 
   const params = new URLSearchParams({
-    client_id: oauthProvider.clientId,
+    client_id: creds.clientId,
     redirect_uri: callbackUrl(provider),
     response_type: "code",
     scope: PROVIDERS[provider].scope,
@@ -116,8 +133,14 @@ export async function oauthCallback(req: Request, res: Response) {
   const oauthProvider = await prisma.oAuthProvider.findUnique({
     where: { applicationId_provider: { applicationId: app.id, provider } },
   });
-  if (!oauthProvider) {
-    res.status(400).send("<p>OAuth provider not configured</p>");
+  if (!oauthProvider?.enabled) {
+    res.status(400).send("<p>OAuth provider not enabled for this application</p>");
+    return;
+  }
+
+  const creds = PLATFORM_CREDENTIALS[provider];
+  if (!creds?.clientId) {
+    res.status(503).send(`<p>${provider} OAuth is not configured on this AuthKit instance</p>`);
     return;
   }
 
@@ -133,8 +156,8 @@ export async function oauthCallback(req: Request, res: Response) {
       },
       body: JSON.stringify({
         code,
-        client_id: oauthProvider.clientId,
-        client_secret: oauthProvider.clientSecret,
+        client_id: creds.clientId,
+        client_secret: creds.clientSecret,
         redirect_uri: callbackUrl(provider),
         ...(isGithub ? {} : { grant_type: "authorization_code" }),
       }),
