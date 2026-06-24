@@ -14,9 +14,12 @@ const sections = [
   { id: "nextjs", label: "Next.js Middleware" },
   { id: "server", label: "Server SDK" },
   { id: "oauth", label: "OAuth" },
+  { id: "mfa", label: "MFA / TOTP" },
   { id: "sessions", label: "Session Management" },
   { id: "webhooks", label: "Webhooks" },
   { id: "metadata", label: "User Metadata" },
+  { id: "app-settings", label: "App Settings" },
+  { id: "rate-limits", label: "Rate Limits" },
 ];
 
 const Code = CodeBlock;
@@ -454,12 +457,9 @@ app.post("/webhooks/auth", express.raw({ type: "*/*" }), (req, res) => {
 
           {/* OAuth */}
           <Section id="oauth" title="OAuth">
-            <P>Support Google and GitHub login without writing any redirect logic. Configure providers from the dashboard, then call one function.</P>
+            <P>Support Google and GitHub login without any OAuth app setup on your end. AuthKit uses its own platform-level credentials — you just flip a toggle.</P>
             <H3>Setup (dashboard)</H3>
-            <P>1. In the AuthKit dashboard, open your app → OAuth Providers → Add provider.</P>
-            <P>2. Register the callback URL in your OAuth provider&apos;s settings:</P>
-            <Code lang="bash">{`https://your-authkit-api.com/v1/oauth/{provider}/callback`}</Code>
-            <P>3. Paste your Client ID and Client Secret into the dashboard form.</P>
+            <P>In the AuthKit dashboard, open your app → <strong>Configure</strong> → <strong>Social Login</strong>. Toggle Google or GitHub on. That&apos;s it — no Client ID or Client Secret required.</P>
             <H3>Client usage</H3>
             <Code lang="tsx">{`
 import { useAuth } from "@paribeshn/authkit/react";
@@ -482,6 +482,72 @@ function LoginButtons() {
             <P><Pill>signInWithOAuth</Pill> redirects the user to the provider. After they authorize, they&apos;re redirected to <Pill>/auth/callback</Pill> in your app, which exchanges the code and establishes a session automatically.</P>
             <H3>Callback route</H3>
             <P>Add <Pill>/auth/callback</Pill> to your <Pill>publicRoutes</Pill> in <Pill>authkitMiddleware</Pill> so it is not blocked before the session is created.</P>
+            <Code lang="ts">{`
+export default authkitMiddleware({
+  secretKey: process.env.AUTH_SECRET_KEY!,
+  signInUrl: "/sign-in",
+  publicRoutes: [
+    "/sign-in",
+    "/sign-up",
+    "/auth/callback",  // ← required for OAuth
+  ],
+});
+            `}</Code>
+          </Section>
+
+          {/* MFA */}
+          <Section id="mfa" title="MFA / TOTP">
+            <P>AuthKit supports time-based one-time passwords (TOTP) compatible with Google Authenticator, Authy, and any RFC 6238 app. Once enabled, users must supply a 6-digit code at every sign-in.</P>
+            <H3>Flow overview</H3>
+            <PropTable rows={[
+              ["GET /v1/me/mfa", "auth required", "Check whether MFA is enabled for the current user."],
+              ["POST /v1/me/mfa/setup", "auth required", "Generate a new TOTP secret + QR code data URL."],
+              ["POST /v1/me/mfa/verify-setup", "auth required", "Confirm the first OTP code to activate MFA."],
+              ["POST /v1/me/mfa/disable", "auth required", "Disable MFA (requires current OTP code to confirm)."],
+              ["POST /v1/mfa/verify", "publishable key", "Verify an OTP during the sign-in challenge flow."],
+            ]} />
+            <H3>Setup — show the QR code</H3>
+            <Code lang="tsx">{`
+// 1. Call setup to get the QR code
+const res = await fetch(\`\${API_URL}/v1/me/mfa/setup\`, {
+  method: "POST",
+  headers: {
+    "x-publishable-key": PK,
+    Authorization: \`Bearer \${accessToken}\`,
+  },
+});
+const { qrDataUrl, secret } = await res.json();
+
+// 2. Show the QR to the user
+<img src={qrDataUrl} alt="Scan with your authenticator app" />
+<p>Manual entry: {secret}</p>
+
+// 3. After scanning, verify the first code to activate
+await fetch(\`\${API_URL}/v1/me/mfa/verify-setup\`, {
+  method: "POST",
+  headers: {
+    "x-publishable-key": PK,
+    "Content-Type": "application/json",
+    Authorization: \`Bearer \${accessToken}\`,
+  },
+  body: JSON.stringify({ code: "123456" }),
+});
+// Response includes backupCodes: string[] — store these safely
+            `}</Code>
+            <H3>Backup codes</H3>
+            <P>On successful setup, the API returns 8 one-time backup codes. Each code can be used once in place of a TOTP code. Show them to the user immediately — they cannot be retrieved later.</P>
+            <H3>Disabling MFA</H3>
+            <Code lang="ts">{`
+await fetch(\`\${API_URL}/v1/me/mfa/disable\`, {
+  method: "POST",
+  headers: {
+    "x-publishable-key": PK,
+    "Content-Type": "application/json",
+    Authorization: \`Bearer \${accessToken}\`,
+  },
+  body: JSON.stringify({ code: "123456" }),
+});
+            `}</Code>
           </Section>
 
           {/* Session Management */}
@@ -600,6 +666,50 @@ function RoleBadge() {
   const { user } = useUser();
   const role = user?.publicMetadata?.role as string | undefined;
   return role ? <span>{role}</span> : null;
+}
+            `}</Code>
+          </Section>
+
+          {/* App Settings */}
+          <Section id="app-settings" title="App Settings">
+            <P>Configure authentication policy per-application from the dashboard under <strong>Settings</strong>. All rules are enforced server-side automatically.</P>
+            <H3>Password policy</H3>
+            <PropTable rows={[
+              ["passwordMinLength", "number (6–72)", "Minimum password length. Default: 8."],
+              ["requireUppercase", "boolean", "Reject passwords with no uppercase letter. Default: false."],
+              ["requireNumber", "boolean", "Reject passwords with no digit. Default: false."],
+            ]} />
+            <H3>Sign-up policy</H3>
+            <PropTable rows={[
+              ["allowSignups", "boolean", "Set to false to stop new users from registering. Default: true."],
+              ["requireEmailVerification", "boolean", "Gate access until the user verifies their email. Default: false."],
+            ]} />
+            <H3>Session policy</H3>
+            <PropTable rows={[
+              ["sessionDurationHours", "number (1–8760)", "How long refresh tokens stay valid. Default: 168 (7 days)."],
+              ["maxSessionsPerUser", "number (1–100)", "Oldest session is automatically pruned when this is exceeded. Default: 5."],
+            ]} />
+            <P>Settings are applied immediately — existing sessions are not invalidated by a duration change, but new sign-ins will use the updated duration.</P>
+          </Section>
+
+          {/* Rate Limits */}
+          <Section id="rate-limits" title="Rate Limits">
+            <P>AuthKit enforces per-IP rate limits to protect against brute-force attacks. When a limit is hit, the server responds with <Pill>429 Too Many Requests</Pill> and a <Pill>Retry-After</Pill> header.</P>
+            <PropTable rows={[
+              ["Sign-in / Sign-up / Forgot password", "5 per 15 minutes", "Per IP address."],
+              ["MFA verify", "5 per 15 minutes", "Per IP address."],
+              ["OTP send", "3 per 10 minutes", "Per IP address."],
+              ["All other /v1 endpoints", "60 per minute", "Per IP address."],
+            ]} />
+            <H3>Handling 429 in your app</H3>
+            <Code lang="tsx">{`
+try {
+  await signIn({ email, password });
+} catch (err) {
+  if (err.status === 429) {
+    const retryAfter = err.headers?.["retry-after"] ?? 60;
+    setError(\`Too many attempts. Try again in \${retryAfter}s.\`);
+  }
 }
             `}</Code>
           </Section>
