@@ -5,15 +5,15 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
 export default function OAuthCallbackPage() {
-  const { client } = useAuth();
+  const { handleOAuthCallback } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    client.handleOAuthCallback().then((user) => {
+    handleOAuthCallback().then((user) => {
       if (user) router.replace("/dashboard");
       else router.replace("/sign-in");
     });
-  }, [client, router]);
+  }, [handleOAuthCallback, router]);
 
   return (
     <div className="min-h-screen flex items-center justify-center">
