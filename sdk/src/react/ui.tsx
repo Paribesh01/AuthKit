@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useAuthContext } from "./context";
 import type { AuthUser } from "../types";
 
@@ -136,9 +136,25 @@ const t = {
   } as React.CSSProperties,
 };
 
-// ── OAuth icons & labels ───────────────────────────────────────────────────────
+// ── Auto-fetch enabled providers ──────────────────────────────────────────────
 
 type OAuthProvider = "google" | "github";
+
+function useEnabledProviders(overrides?: OAuthProvider[]) {
+  const { client } = useAuthContext();
+  const [providers, setProviders] = useState<OAuthProvider[] | null>(
+    overrides !== undefined ? overrides : null
+  );
+
+  useEffect(() => {
+    if (overrides !== undefined) return; // caller provided explicit list — skip fetch
+    client.getEnabledOAuthProviders().then(setProviders).catch(() => setProviders([]));
+  }, [client, overrides]);
+
+  return providers; // null = still loading
+}
+
+// ── OAuth icons & labels ───────────────────────────────────────────────────────
 
 const OAUTH_ICONS: Record<OAuthProvider, React.ReactNode> = {
   google: (
@@ -208,10 +224,11 @@ export function SignIn({
   afterSignIn,
   signUpUrl = "/sign-up",
   forgotPasswordUrl = "/forgot-password",
-  oauthProviders,
+  oauthProviders: oauthProvidersProp,
   oauthCallbackUrl = "/auth/callback",
 }: SignInProps) {
   const { signIn } = useAuthContext();
+  const oauthProviders = useEnabledProviders(oauthProvidersProp);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -314,10 +331,11 @@ export function SignUp({
   signInUrl = "/sign-in",
   showName = false,
   showUsername = false,
-  oauthProviders,
+  oauthProviders: oauthProvidersProp,
   oauthCallbackUrl = "/auth/callback",
 }: SignUpProps) {
   const { signUp } = useAuthContext();
+  const oauthProviders = useEnabledProviders(oauthProvidersProp);
   const [form, setForm] = useState({
     email: "", password: "", firstName: "", lastName: "", username: "",
   });

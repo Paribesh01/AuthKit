@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@paribeshn/authkit':
-        specifier: ^0.2.2
-        version: 0.2.2(react@19.2.4)
+        specifier: ^0.2.3
+        version: 0.2.3(react@19.2.4)
       next:
         specifier: 16.2.9
         version: 16.2.9(@babel/core@7.29.7)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -438,8 +438,8 @@ packages:
     resolution: {integrity: sha512-nn5ozdjYQpUCZlWGuxcJY/KpxkWQs4DcbMCmKojjyrYDEAGy4Ce19NN4v5MduafTwJlbKc99UA8YhSVqq9yPZA==}
     engines: {node: '>=12.4.0'}
 
-  '@paribeshn/authkit@0.2.2':
-    resolution: {integrity: sha512-ngQQaNP4dQeZ9yHzQgDooTIy57I9gHVMk4lrys+QQwQQReCKDaJRjPfpg2+QaYlUY8eOQskjVvA4BQtmUmnODg==}
+  '@paribeshn/authkit@0.2.3':
+    resolution: {integrity: sha512-Or0fq52lsrNZPd+4UUFTpmZVAriOB+A9f6zqp4S/Rp+Z8PkkdGHvV0UhUgGOq6ihzcHpXAPAYSB3xznw3P3W+A==}
     peerDependencies:
       react: '>=18.0.0'
     peerDependenciesMeta:
@@ -2391,7 +2391,7 @@ snapshots:
 
   '@nolyfill/is-core-module@1.0.39': {}
 
-  '@paribeshn/authkit@0.2.2(react@19.2.4)':
+  '@paribeshn/authkit@0.2.3(react@19.2.4)':
     dependencies:
       jsonwebtoken: 9.0.3
     optionalDependencies:

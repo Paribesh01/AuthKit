@@ -4,7 +4,7 @@ import { validate } from "../middleware/validate.middleware";
 import { requirePublishableKey, requireSecretKey } from "../middleware/apiKey.middleware";
 import { requireAppUserToken } from "../middleware/appUserAuth.middleware";
 import { authLimiter, otpLimiter } from "../middleware/rateLimiter";
-import { initiateOAuth, oauthCallback } from "../controllers/v1/oauth.controller";
+import { initiateOAuth, oauthCallback, getEnabledProviders } from "../controllers/v1/oauth.controller";
 import {
   signUp,
   signIn,
@@ -83,6 +83,7 @@ router.post(
 );
 
 // OAuth — publishable key + redirect_url in query params (browser redirect flow)
+router.get("/oauth/providers", requirePublishableKey, getEnabledProviders);
 router.get("/oauth/:provider", initiateOAuth);
 router.get("/oauth/:provider/callback", oauthCallback);
 

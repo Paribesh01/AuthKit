@@ -43,6 +43,23 @@ function stateSecret() {
   return process.env.JWT_REFRESH_SECRET!;
 }
 
+// ── GET /v1/oauth/providers ──────────────────────────────────────────────────
+
+export async function getEnabledProviders(req: Request, res: Response) {
+  const application = (req as Request & { application?: { id: string } }).application;
+  if (!application) {
+    res.status(401).json({ error: "Invalid publishable key" });
+    return;
+  }
+
+  const rows = await prisma.oAuthProvider.findMany({
+    where: { applicationId: application.id, enabled: true },
+    select: { provider: true },
+  });
+
+  res.json({ providers: rows.map((r) => r.provider) });
+}
+
 // ── GET /v1/oauth/:provider ──────────────────────────────────────────────────
 
 export async function initiateOAuth(req: Request, res: Response) {

@@ -20,7 +20,6 @@ export default function SignUpPage() {
         afterSignUp={() => router.push("/dashboard")}
         signInUrl="/sign-in"
         showName
-        oauthProviders={["google", "github"]}
         oauthCallbackUrl={`${typeof window !== "undefined" ? window.location.origin : ""}/auth/callback`}
       />
     </div>

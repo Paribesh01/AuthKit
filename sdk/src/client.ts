@@ -185,6 +185,11 @@ export class AuthClient {
    *   (e.g. "https://myapp.com/auth/callback"). The SDK reads tokens there
    *   via handleOAuthCallback().
    */
+  async getEnabledOAuthProviders(): Promise<("google" | "github")[]> {
+    const data = await this._request<{ providers: ("google" | "github")[] }>("/oauth/providers");
+    return data.providers;
+  }
+
   signInWithOAuth(provider: "google" | "github", options: { redirectUrl: string }) {
     const url = new URL(`${this.config.baseUrl}/v1/oauth/${provider}`);
     url.searchParams.set("publishable_key", this.config.publishableKey);
