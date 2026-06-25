@@ -46,3 +46,14 @@ export interface SignInParams {
   username?: string;
   password: string;
 }
+
+export interface MfaSetupResult {
+  secret: string;
+  otpauthUrl: string;
+  qrDataUrl: string;
+}
+
+export interface MfaVerifySetupResult {
+  enabled: boolean;
+  backupCodes: string[];
+}

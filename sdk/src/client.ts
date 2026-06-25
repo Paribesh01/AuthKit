@@ -1,4 +1,4 @@
-import type { AuthConfig, AuthUser, Session, SignInParams, SignUpParams } from "./types";
+import type { AuthConfig, AuthUser, MfaSetupResult, MfaVerifySetupResult, Session, SignInParams, SignUpParams } from "./types";
 
 export class AuthClient {
   private config: AuthConfig;
@@ -254,6 +254,32 @@ export class AuthClient {
       body: JSON.stringify({ token, password }),
     });
   }
+
+  // ── MFA ──────────────────────────────────────────────────────────────────────
+
+  async getMfaStatus(): Promise<{ enabled: boolean }> {
+    return this._authedRequest<{ enabled: boolean }>("/me/mfa");
+  }
+
+  async setupMfa(): Promise<MfaSetupResult> {
+    return this._authedRequest<MfaSetupResult>("/me/mfa/setup", { method: "POST" });
+  }
+
+  async verifyMfaSetup(code: string): Promise<MfaVerifySetupResult> {
+    return this._authedRequest<MfaVerifySetupResult>("/me/mfa/verify-setup", {
+      method: "POST",
+      body: JSON.stringify({ code }),
+    });
+  }
+
+  async disableMfa(code: string): Promise<void> {
+    await this._authedRequest("/me/mfa/disable", {
+      method: "POST",
+      body: JSON.stringify({ code }),
+    });
+  }
+
+  // ── Helpers ───────────────────────────────────────────────────────────────────
 
   getAccessToken(): string | null {
     return this._accessToken;
