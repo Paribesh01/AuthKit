@@ -84,13 +84,13 @@ router.post(
 
 // OAuth — publishable key + redirect_url in query params (browser redirect flow)
 router.get("/oauth/providers", requirePublishableKey, getEnabledProviders);
-router.get("/oauth/:provider", initiateOAuth);
+router.get("/oauth/:provider", apiLimiter, initiateOAuth);
 router.get("/oauth/:provider/callback", oauthCallback);
 
 // Session management (access token required)
-router.get("/me/sessions", requirePublishableKey, listSessions);
-router.delete("/me/sessions", requirePublishableKey, revokeAllSessions);
-router.delete("/me/sessions/:sessionId", requirePublishableKey, revokeSession);
+router.get("/me/sessions", requirePublishableKey, requireAppUserToken, listSessions);
+router.delete("/me/sessions", requirePublishableKey, requireAppUserToken, revokeAllSessions);
+router.delete("/me/sessions/:sessionId", requirePublishableKey, requireAppUserToken, revokeSession);
 
 // Current user metadata (access token required)
 router.patch(

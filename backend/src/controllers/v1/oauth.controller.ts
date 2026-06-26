@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import jwt from "jsonwebtoken";
+import crypto from "crypto";
 import { prisma } from "../../db/prisma";
 import { signAppAccessToken, signAppRefreshToken } from "../../lib/appJwt";
 import { fireWebhook } from "../../lib/webhook";
@@ -97,8 +98,26 @@ export async function initiateOAuth(req: Request, res: Response) {
     return;
   }
 
+  // Validate redirectUrl against app's allowedOrigins
+  let redirectOrigin: string;
+  try {
+    redirectOrigin = new URL(redirectUrl).origin;
+  } catch {
+    res.status(400).json({ error: "Invalid redirect_url" });
+    return;
+  }
+  if (app.allowedOrigins.length > 0) {
+    const allowed = app.allowedOrigins.some((o) => {
+      try { return new URL(o).origin === redirectOrigin; } catch { return o === redirectUrl; }
+    });
+    if (!allowed) {
+      res.status(403).json({ error: "redirect_url not in application's allowed origins" });
+      return;
+    }
+  }
+
   const state = jwt.sign(
-    { publishableKey, redirectUrl, nonce: Math.random().toString(36).slice(2) },
+    { publishableKey, redirectUrl, nonce: crypto.randomBytes(32).toString("hex") },
     stateSecret(),
     { expiresIn: "10m" } as jwt.SignOptions
   );
@@ -183,7 +202,8 @@ export async function oauthCallback(req: Request, res: Response) {
     if (!tokenData.access_token) throw new Error(tokenData.error || "No access token");
     providerAccessToken = tokenData.access_token;
   } catch (err) {
-    res.status(500).send(`<p>Failed to exchange code: ${(err as Error).message}</p>`);
+    console.error("[OAuth] Token exchange failed:", err);
+    res.status(500).send("<p>Authentication failed. Please try again.</p>");
     return;
   }
 
@@ -225,8 +245,9 @@ export async function oauthCallback(req: Request, res: Response) {
         email = emails.find((e) => e.primary && e.verified)?.email ?? null;
       }
     }
-  } catch {
-    res.status(500).send("<p>Failed to fetch user info from provider</p>");
+  } catch (err) {
+    console.error("[OAuth] Failed to fetch user info:", err);
+    res.status(500).send("<p>Authentication failed. Please try again.</p>");
     return;
   }
 
