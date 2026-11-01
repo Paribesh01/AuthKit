@@ -504,7 +504,7 @@ export default authkitMiddleware({
               ["POST /v1/me/mfa/setup", "auth required", "Generate a new TOTP secret + QR code data URL."],
               ["POST /v1/me/mfa/verify-setup", "auth required", "Confirm the first OTP code to activate MFA."],
               ["POST /v1/me/mfa/disable", "auth required", "Disable MFA (requires current OTP code to confirm)."],
-              ["POST /v1/mfa/verify", "publishable key", "Verify an OTP during the sign-in challenge flow."],
+              ["POST /v1/mfa/verify", "publishable key", "Second sign-in step: send { mfaToken, code } (mfaToken comes from /v1/sign-in when mfaRequired is true) to get a session."],
             ]} />
             <H3>Setup — show the QR code</H3>
             <Code lang="tsx">{`

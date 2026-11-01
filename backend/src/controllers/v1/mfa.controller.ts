@@ -6,6 +6,9 @@ const { TOTP } = require("otpauth") as { TOTP: new (opts: Record<string, unknown
 const QRCode = require("qrcode") as { toDataURL(text: string): Promise<string> };
 import crypto from "crypto";
 import { hashPassword, comparePassword } from "../../lib/password";
+import { verifyMfaChallengeToken } from "../../lib/appJwt";
+import { completeSignIn } from "./auth.controller";
+import type { AppContext } from "../../middleware/apiKey.middleware";
 
 function newTotpSecret(): string {
   return crypto.randomBytes(20).toString("base64").replace(/[^A-Z2-7]/gi, "A").toUpperCase().slice(0, 32);
@@ -89,32 +92,49 @@ export async function getMfaStatus(req: Request, res: Response) {
   res.json({ enabled: mfa?.enabled ?? false });
 }
 
-// Called during sign-in flow when MFA is required
+// Second step of sign-in for MFA users. The user is identified only by the
+// challenge token from /v1/sign-in (never by a client-supplied userId), and a
+// session is issued only after a valid TOTP or backup code.
 export async function verifyMfaCode(req: Request, res: Response) {
-  const { userId, code, applicationId } = req.body as { userId: string; code: string; applicationId: string };
-  if (!userId || !code) { res.status(422).json({ error: "userId and code required" }); return; }
+  const app = req.application! as AppContext;
+  const { mfaToken, code } = req.body as { mfaToken: string; code: string };
 
-  const mfa = await prisma.appUserMfa.findUnique({ where: { appUserId: userId } });
+  let challenge: { sub: string; azp: string };
+  try {
+    challenge = verifyMfaChallengeToken(mfaToken, app.secretKey);
+  } catch {
+    res.status(401).json({ error: "Invalid or expired MFA challenge. Sign in again." });
+    return;
+  }
+  if (challenge.azp !== app.id) {
+    res.status(401).json({ error: "Invalid or expired MFA challenge. Sign in again." });
+    return;
+  }
+
+  const user = await prisma.appUser.findFirst({ where: { id: challenge.sub, applicationId: app.id } });
+  if (!user) { res.status(401).json({ error: "Invalid or expired MFA challenge. Sign in again." }); return; }
+  if (user.banned) { res.status(403).json({ error: "This account has been banned" }); return; }
+
+  const mfa = await prisma.appUserMfa.findUnique({ where: { appUserId: user.id } });
   if (!mfa || !mfa.enabled) { res.status(400).json({ error: "MFA not enabled" }); return; }
 
-  const app = await prisma.application.findUnique({ where: { id: applicationId }, select: { name: true } });
-  const user = await prisma.appUser.findUnique({ where: { id: userId }, select: { email: true } });
-  const totp = makeTOTP(mfa.secret, user?.email ?? userId, app?.name ?? "App");
-
-  const delta = totp.validate({ token: code, window: 1 });
-  if (delta !== null) { res.json({ valid: true }); return; }
+  const totp = makeTOTP(mfa.secret, user.email ?? user.id, app.name);
+  if (totp.validate({ token: String(code), window: 1 }) !== null) {
+    await completeSignIn(req, res, app, user);
+    return;
+  }
 
   // Try backup codes
   for (let i = 0; i < mfa.backupCodes.length; i++) {
-    if (await comparePassword(code, mfa.backupCodes[i])) {
+    if (await comparePassword(String(code), mfa.backupCodes[i])) {
       // Consume backup code
       const remaining = [...mfa.backupCodes];
       remaining.splice(i, 1);
-      await prisma.appUserMfa.update({ where: { appUserId: userId }, data: { backupCodes: remaining } });
-      res.json({ valid: true, usedBackupCode: true, remaining: remaining.length });
+      await prisma.appUserMfa.update({ where: { appUserId: user.id }, data: { backupCodes: remaining } });
+      await completeSignIn(req, res, app, user);
       return;
     }
   }
 
-  res.status(400).json({ valid: false, error: "Invalid MFA code" });
+  res.status(401).json({ error: "Invalid MFA code" });
 }

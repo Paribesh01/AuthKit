@@ -231,9 +231,24 @@ client.signInWithOAuth("google", {
   redirectUrl: "http://localhost:3001/auth/callback",
 });
 
-// On your callback page — reads tokens from URL, stores them
+// On your callback page — reads tokens from the URL fragment, stores them
 const user = await client.handleOAuthCallback();
 if (user) router.push("/dashboard");
+```
+
+**MFA sign-in:** for users with MFA enabled, `signIn()` and `handleOAuthCallback()` throw `MfaRequiredError` instead of signing in. Ask for a code and finish with:
+
+```tsx
+import { MfaRequiredError } from "@paribeshn/authkit";
+
+try {
+  await client.signIn({ email, password });
+} catch (err) {
+  if (err instanceof MfaRequiredError) {
+    const code = await promptForCode(); // TOTP or backup code
+    await client.completeMfaSignIn(err.mfaToken, code);
+  } else throw err;
+}
 ```
 
 ### Next.js — `authkit/nextjs`
@@ -414,6 +429,7 @@ For each provider you want to support:
 2. Register the callback URL: `{API_URL}/v1/oauth/{provider}/callback`
    - Dev: `http://localhost:4000/v1/oauth/google/callback`
 3. Add the credentials in your dashboard → App → OAuth Providers
+4. Add your app's origin (e.g. `http://localhost:3001`) to the app's **Allowed origins**. OAuth `redirect_url` and password-reset `redirectUrl` must match one of them exactly. With none configured, these redirects are refused, since the URL receives session and reset tokens.
 
 ---
 

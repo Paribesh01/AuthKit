@@ -3,7 +3,7 @@ import { body } from "express-validator";
 import { validate } from "../middleware/validate.middleware";
 import { requirePublishableKey, requireSecretKey } from "../middleware/apiKey.middleware";
 import { requireAppUserToken } from "../middleware/appUserAuth.middleware";
-import { authLimiter, otpLimiter } from "../middleware/rateLimiter";
+import { authLimiter, otpLimiter, apiLimiter } from "../middleware/rateLimiter";
 import { initiateOAuth, oauthCallback, getEnabledProviders } from "../controllers/v1/oauth.controller";
 import {
   signUp,
@@ -134,12 +134,12 @@ router.post(
   validate,
   disableMfa
 );
-// Called during sign-in to complete MFA challenge (no user token yet)
+// Second sign-in step for MFA users: exchanges the mfaToken from /sign-in + a code for a session
 router.post(
   "/mfa/verify",
-  requirePublishableKey,
   authLimiter,
-  [body("userId").notEmpty(), body("code").notEmpty()],
+  requirePublishableKey,
+  [body("mfaToken").isString().notEmpty(), body("code").isString().notEmpty()],
   validate,
   verifyMfaCode
 );

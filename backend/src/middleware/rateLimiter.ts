@@ -40,4 +40,4 @@ setInterval(() => {
   for (const [key, val] of store.entries()) {
     if (now > val.resetAt) store.delete(key);
   }
-}, 5 * 60 * 1000);
+}, 5 * 60 * 1000).unref();
