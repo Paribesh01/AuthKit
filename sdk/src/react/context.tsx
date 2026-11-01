@@ -26,6 +26,7 @@ export interface AuthContextValue {
 
   // Auth
   signIn: (params: SignInParams) => Promise<AuthUser>;
+  completeMfaSignIn: (mfaToken: string, code: string) => Promise<AuthUser>;
   signUp: (params: SignUpParams) => Promise<AuthUser>;
   signOut: () => Promise<void>;
   forgotPassword: (email: string, redirectUrl?: string) => Promise<void>;
@@ -83,6 +84,16 @@ export function AuthProvider({
   const signIn = useCallback(
     async (params: SignInParams): Promise<AuthUser> => {
       const u = await client.signIn(params);
+      setUser(u);
+      setAccessToken(client.getAccessToken());
+      return u;
+    },
+    [client]
+  );
+
+  const completeMfaSignIn = useCallback(
+    async (mfaToken: string, code: string): Promise<AuthUser> => {
+      const u = await client.completeMfaSignIn(mfaToken, code);
       setUser(u);
       setAccessToken(client.getAccessToken());
       return u;
@@ -159,6 +170,7 @@ export function AuthProvider({
         isSignedIn: !!user,
         accessToken,
         signIn,
+        completeMfaSignIn,
         signUp,
         signOut,
         forgotPassword,

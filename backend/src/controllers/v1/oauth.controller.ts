@@ -2,7 +2,8 @@ import { Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import { prisma } from "../../db/prisma";
-import { signAppAccessToken, signAppRefreshToken } from "../../lib/appJwt";
+import { signAppAccessToken, signAppRefreshToken, signMfaChallengeToken } from "../../lib/appJwt";
+import { isAllowedRedirect } from "../../lib/redirect";
 import { fireWebhook } from "../../lib/webhook";
 
 const API_URL = process.env.API_URL || "http://localhost:4000";
@@ -98,22 +99,13 @@ export async function initiateOAuth(req: Request, res: Response) {
     return;
   }
 
-  // Validate redirectUrl against app's allowedOrigins
-  let redirectOrigin: string;
-  try {
-    redirectOrigin = new URL(redirectUrl).origin;
-  } catch {
-    res.status(400).json({ error: "Invalid redirect_url" });
-    return;
-  }
-  if (app.allowedOrigins.length > 0) {
-    const allowed = app.allowedOrigins.some((o) => {
-      try { return new URL(o).origin === redirectOrigin; } catch { return o === redirectUrl; }
+  // redirect_url receives the session tokens, so it must be one of the app's
+  // configured origins. No allow-list configured means no OAuth redirects.
+  if (!isAllowedRedirect(app.allowedOrigins, redirectUrl)) {
+    res.status(403).json({
+      error: "redirect_url is not in this application's allowed origins. Add your app's origin in the AuthKit dashboard.",
     });
-    if (!allowed) {
-      res.status(403).json({ error: "redirect_url not in application's allowed origins" });
-      return;
-    }
+    return;
   }
 
   const state = jwt.sign(
@@ -296,6 +288,26 @@ export async function oauthCallback(req: Request, res: Response) {
     return;
   }
 
+  // Re-check the redirect: the allow-list may have changed since the state was issued
+  if (!isAllowedRedirect(app.allowedOrigins, statePayload.redirectUrl)) {
+    res.status(400).send("<p>Redirect URL is no longer allowed for this application.</p>");
+    return;
+  }
+
+  // Tokens go in the URL fragment, which browsers never send to servers or in
+  // Referer headers, so they don't end up in access logs or third-party requests.
+  const redirect = new URL(statePayload.redirectUrl);
+
+  // OAuth replaces the password, not the second factor
+  const mfa = await prisma.appUserMfa.findUnique({ where: { appUserId: user.id }, select: { enabled: true } });
+  if (mfa?.enabled) {
+    redirect.hash = new URLSearchParams({
+      mfaToken: signMfaChallengeToken(user.id, app.id, app.secretKey),
+    }).toString();
+    res.redirect(redirect.toString());
+    return;
+  }
+
   // Create app session
   const payload = {
     sub: user.id,
@@ -330,9 +342,6 @@ export async function oauthCallback(req: Request, res: Response) {
     );
   }
 
-  // Redirect back to the developer's app with tokens in query params
-  const redirect = new URL(statePayload.redirectUrl);
-  redirect.searchParams.set("accessToken", accessToken);
-  redirect.searchParams.set("refreshToken", refreshToken);
+  redirect.hash = new URLSearchParams({ accessToken, refreshToken }).toString();
   res.redirect(redirect.toString());
 }

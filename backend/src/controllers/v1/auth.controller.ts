@@ -1,7 +1,8 @@
 import { Request, Response } from "express";
 import { prisma } from "../../db/prisma";
 import { hashPassword, comparePassword } from "../../lib/password";
-import { signAppAccessToken, signAppRefreshToken, verifyAppToken } from "../../lib/appJwt";
+import { signAppAccessToken, signAppRefreshToken, verifyAppToken, signMfaChallengeToken } from "../../lib/appJwt";
+import { isAllowedRedirect } from "../../lib/redirect";
 import { generateSecureToken, tokenExpiresAt } from "../../lib/tokens";
 import { sendAppUserPasswordReset, sendAppUserEmailVerification } from "../../lib/email";
 import { fireWebhook } from "../../lib/webhook";
@@ -181,6 +182,39 @@ export async function signIn(req: Request, res: Response) {
     return;
   }
 
+  // Password alone is not enough when the user has MFA on: hand back a
+  // short-lived challenge token and issue no session until /v1/mfa/verify.
+  const mfa = await prisma.appUserMfa.findUnique({
+    where: { appUserId: user.id },
+    select: { enabled: true },
+  });
+  if (mfa?.enabled) {
+    res.json({
+      mfaRequired: true,
+      mfaToken: signMfaChallengeToken(user.id, app.id, app.secretKey),
+    });
+    return;
+  }
+
+  await completeSignIn(req, res, app, user);
+}
+
+// Issue a session for a fully-authenticated user. Only call this once every
+// required factor has been checked.
+export async function completeSignIn(
+  req: Request,
+  res: Response,
+  app: AppContext,
+  user: {
+    id: string;
+    applicationId: string;
+    email: string | null;
+    username: string | null;
+    emailVerified: boolean;
+    firstName: string | null;
+    lastName: string | null;
+  }
+) {
   // Fetch settings for session duration + max sessions enforcement
   const settings = await prisma.appSettings.findUnique({ where: { applicationId: app.id } });
   const sessionHours = settings?.sessionDurationHours ?? 168;
@@ -434,6 +468,14 @@ export async function verifyEmail(req: Request, res: Response) {
 export async function forgotPassword(req: Request, res: Response) {
   const app = req.application! as AppContext;
   const { email, redirectUrl } = req.body;
+
+  // The reset link carries the reset token, so it may only point at one of the
+  // app's own origins. Checked before the user lookup so the response can't be
+  // used to probe which emails exist.
+  if (redirectUrl && !isAllowedRedirect(app.allowedOrigins, redirectUrl)) {
+    res.status(400).json({ error: "redirectUrl is not in this application's allowed origins" });
+    return;
+  }
 
   const user = await prisma.appUser.findFirst({
     where: { applicationId: app.id, email },

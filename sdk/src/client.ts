@@ -1,5 +1,17 @@
 import type { AuthConfig, AuthUser, MfaSetupResult, MfaVerifySetupResult, Session, SignInParams, SignUpParams } from "./types";
 
+/**
+ * Thrown by signIn() / handleOAuthCallback() when the user has MFA enabled.
+ * Prompt for a TOTP or backup code, then call completeMfaSignIn(err.mfaToken, code).
+ */
+export class MfaRequiredError extends Error {
+  readonly code = "mfa_required";
+  constructor(public readonly mfaToken: string) {
+    super("Multi-factor authentication required");
+    this.name = "MfaRequiredError";
+  }
+}
+
 export class AuthClient {
   private config: AuthConfig;
   private _accessToken: string | null = null;
@@ -140,11 +152,27 @@ export class AuthClient {
   }
 
   async signIn(params: SignInParams): Promise<AuthUser> {
+    const data = await this._request<
+      | { mfaRequired: true; mfaToken: string }
+      | { mfaRequired?: undefined; user: AuthUser; accessToken: string; refreshToken: string }
+    >("/sign-in", { method: "POST", body: JSON.stringify(params) });
+
+    if (data.mfaRequired) throw new MfaRequiredError(data.mfaToken);
+
+    this._accessToken = data.accessToken;
+    this._saveRefreshToken(data.refreshToken);
+    this._saveAccessCookie(data.accessToken);
+    this._user = data.user;
+    return data.user;
+  }
+
+  /** Second sign-in step for MFA users: exchange the challenge token + a TOTP/backup code for a session. */
+  async completeMfaSignIn(mfaToken: string, code: string): Promise<AuthUser> {
     const data = await this._request<{
       user: AuthUser;
       accessToken: string;
       refreshToken: string;
-    }>("/sign-in", { method: "POST", body: JSON.stringify(params) });
+    }>("/mfa/verify", { method: "POST", body: JSON.stringify({ mfaToken, code }) });
 
     this._accessToken = data.accessToken;
     this._saveRefreshToken(data.refreshToken);
@@ -204,21 +232,25 @@ export class AuthClient {
    */
   async handleOAuthCallback(): Promise<AuthUser | null> {
     if (typeof window === "undefined") return null;
-    const params = new URLSearchParams(window.location.search);
+    // Tokens arrive in the URL fragment so they never reach any server's logs
+    const params = new URLSearchParams(window.location.hash.slice(1));
     const accessToken = params.get("accessToken");
     const refreshToken = params.get("refreshToken");
+    const mfaToken = params.get("mfaToken");
 
+    // Clean tokens out of the URL (security: don't leave them in history)
+    if (accessToken || refreshToken || mfaToken) {
+      const clean = new URL(window.location.href);
+      clean.hash = "";
+      window.history.replaceState({}, "", clean.toString());
+    }
+
+    if (mfaToken) throw new MfaRequiredError(mfaToken);
     if (!accessToken || !refreshToken) return null;
 
     this._accessToken = accessToken;
     this._saveRefreshToken(refreshToken);
     this._saveAccessCookie(accessToken);
-
-    // Clean tokens out of the URL (security: don't leave them in history)
-    const clean = new URL(window.location.href);
-    clean.searchParams.delete("accessToken");
-    clean.searchParams.delete("refreshToken");
-    window.history.replaceState({}, "", clean.toString());
 
     return this.getUser();
   }
